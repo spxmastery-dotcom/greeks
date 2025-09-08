@@ -4,7 +4,14 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SPX Nov 28 7000 Call: Greeks Analyzer (10 Contracts)</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/chart.js/3.9.1/chart.min.js" integrity="sha512-ElRFoEQdI5Ht6kZvyzXhYG9NqjtkmlkfYk0wr6wHxU9JEHakS7UJZNeml5ALk+8IKlU6jDgMabC3vkumRokgJA==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    <!-- Primary CDN for Chart.js -->
+    <script src="https://unpkg.com/chart.js@3.9.1/dist/chart.min.js"></script>
+    <!-- Fallback CDN if primary fails -->
+    <script>
+        if (typeof Chart === 'undefined') {
+            document.write('<script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"><\/script>');
+        }
+    </script>
     <style>
         body { font-family: Arial, sans-serif; margin: 20px; background-color: #f4f4f4; }
         h1, h2, h3 { color: #333; text-align: center; }
@@ -105,7 +112,7 @@
     </div>
 
     <script>
-        // Black-Scholes Functions
+        // Black-Scholes Functions (unchanged)
         function normPDF(x) {
             try {
                 return (1 / Math.sqrt(2 * Math.PI)) * Math.exp(-0.5 * x * x);
@@ -173,7 +180,7 @@
             return (low + high) / 2;
         }
 
-        // New: Live Data Fetch
+        // Live Data Fetch
         async function fetchLiveData() {
             try {
                 const apiKey = document.getElementById('apiKey')?.value;
@@ -200,7 +207,7 @@
                 const iv = (vix / Math.sqrt(252)) * 100; // Approximate ATM IV
                 document.getElementById('iv').value = iv.toFixed(2);
 
-                // Fetch VIX futures for contango/backwardation (using VIX spot as proxy)
+                // Fetch VIX futures for contango/backwardation (using VIX spot as proxy for free tier)
                 const vix1MResponse = await fetch(`https://finnhub.io/api/v1/quote?symbol=VIX&token=${apiKey}`);
                 const vix1MData = await vix1MResponse.json();
                 const vix1M = vix1MData.c || 15.21;
@@ -245,7 +252,7 @@
                     currentEl.innerHTML = `Current (SPX ${S_current}): Delta ${currentGreeks.total_delta}, Gamma ${currentGreeks.total_gamma}, Theta ${currentGreeks.total_theta}, Vega ${currentGreeks.total_vega}, Value $${currentGreeks.total_price} (${currentGreeks.pl_pct}%)<br>95% EDR: -${((iv * Math.sqrt(30 / 365) * 1.96) * 100).toFixed(2)}% in 30 days`;
                 }
 
-                // Table
+                // Table (unchanged from previous)
                 const S_breakeven = solveForS(INITIAL_COST, true, S_current - 200, S_current + 200, 0.1, K, T, rf, iv);
                 const greeks_be = getPositionGreeks(S_breakeven, K, T, rf, iv);
                 const target_20_price = INITIAL_COST * 1.2;
@@ -321,8 +328,8 @@
                 // Charts
                 if (typeof Chart === 'undefined') {
                     document.getElementById('chartError').style.display = 'block';
-                    console.log('Chart.js not loaded');
-                    alert('Charts failed to load. Please check your internet connection or disable ad blockers.');
+                    console.log('Chart.js not loaded - check CDN or ad blocker.');
+                    alert('Charts failed to load. Please check your internet connection or disable ad blockers. Try incognito mode.');
                     return;
                 }
 
@@ -477,13 +484,13 @@
         }
 
         // Load API key from localStorage and fetch data on page load
-        window.onload = function() {
+        window.addEventListener('load', function() {
             const savedApiKey = localStorage.getItem('finnhubApiKey');
             if (savedApiKey) {
                 document.getElementById('apiKey').value = savedApiKey;
                 fetchLiveData();
             }
-        };
+        });
     </script>
 
     <p><strong>Notes:</strong> Model uses Black-Scholes (matches your data: delta ~90.24, gamma ~0.52, theta ~-362, vega ~4877 at SPX 6499). Enter Finnhub API key to fetch live data or use manual inputs. Contango/Backwardation guides buy timing. Not financial advice.</p>
