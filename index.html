@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SPX Mastery Long-Term Options Analyzer (Build 1, Version 3)</title>
+    <title>SPX Mastery Long-Term Options Analyzer (Build 1, Version 4)</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js" onload="console.log('CDN_SUCCESS_1: jsDelivr loaded')" onerror="console.log('CDN_ERROR_1: jsDelivr failed'); loadFallbackCDN(1)"></script>
     <script>
         function loadFallbackCDN(attempt) {
@@ -29,7 +29,7 @@
         .input-section { background: white; padding: 20px; margin: 20px auto; max-width: 800px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
         .input-group { display: flex; justify-content: space-around; margin: 10px 0; }
         input { padding: 5px; width: 100px; }
-        button { padding: 10px 20px; background: #4CAF50; color: white; border: none; cursor: pointer; }
+        button { padding: 10px 20px; background: #4CAF50; color: white; border: none; cursor: pointer; margin: 2px; }
         .current-greeks { text-align: center; margin: 10px; font-weight: bold; }
         .chart-container, .table-container { width: 100%; max-width: 800px; margin: 20px auto; background: white; padding: 20px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
         canvas { max-height: 300px; width: 100% !important; height: 300px !important; }
@@ -54,6 +54,7 @@
         .backwardation { color: red; font-weight: bold; }
         .fetch-success { color: green; text-align: center; margin: 10px; }
         .version { font-size: 12px; color: #666; text-align: center; margin-top: 20px; }
+        .api-note { font-size: 12px; color: #666; text-align: center; margin: 5px 0; }
     </style>
 </head>
 <body>
@@ -61,14 +62,17 @@
     <div class="disclaimer">
         <strong>Disclaimer:</strong> This tool is for educational purposes only and is not financial advice. Options trading involves significant risks, including the potential loss of your entire investment or more. Calculations are theoretical (Black-Scholes model) and may not reflect actual market conditions. The creator (spxmastery) is not liable for any financial losses or damages resulting from use of this tool. Consult a qualified financial advisor before trading options. See full disclaimer in the <a href="https://github.com/spxmastery/greeks">README</a>.
     </div>
-    <h1>SPX Mastery Long-Term Options Analyzer (Build 1, Version 3)</h1>
+    <h1>SPX Mastery Long-Term Options Analyzer (Build 1, Version 4)</h1>
     <div class="input-section">
         <h2>Input Parameters (Click Update to Recalculate)</h2>
         <div class="api-section">
-            <label>Alpha Vantage API Key (free at alphavantage.co): <input id="apiKey" type="password" class="api-input" placeholder="Enter your key"></label>
+            <label>Finnhub API Key (free at finnhub.io): <input id="apiKey" type="password" class="api-input" placeholder="Enter your key"></label>
+            <button onclick="testApiKey()">Test API Key</button>
             <button onclick="fetchLiveData()">Fetch Live Data</button>
+            <button onclick="useEtfProxy()">Use ETF Proxy (SPY/UVXY)</button>
             <button onclick="clearApiKey()">Clear API Key</button>
         </div>
+        <p class="api-note">Get a free key at <a href="https://finnhub.io" target="_blank">finnhub.io</a> (1 min). If fetch fails, edit manual inputs or use ETF proxy for approx. live data.</p>
         <div class="input-group">
             <label>SPX: <input id="spx" type="number" value="6486" step="1" placeholder="Fallback: 6486"></label>
             <label>Days to Exp: <input id="days" type="number" value="81" step="1" placeholder="Fallback: 81"></label>
@@ -117,10 +121,10 @@
         <canvas id="vegaChart"></canvas>
         <div class="legend">Red <3000: Exit | 3000-5000 Yellow | >5000 Green</div>
     </div>
-    <p class="version">Build 1, Version 3 - Sep 8, 2025</p>
+    <p class="version">Build 1, Version 4 - Sep 8, 2025</p>
     <script>
         console.log('JS_INIT: Script loaded');
-        // Black-Scholes Functions
+        // Black-Scholes Functions (unchanged, validated)
         function normPDF(x) {
             try {
                 return (1 / Math.sqrt(2 * Math.PI)) * Math.exp(-0.5 * x * x);
@@ -191,18 +195,66 @@
             }
             return (low + high) / 2;
         }
+        // Test API Key (simple quote fetch)
+        async function testApiKey() {
+            const apiKey = document.getElementById('apiKey').value;
+            if (!apiKey) {
+                alert('Enter API key first!');
+                return;
+            }
+            try {
+                const response = await fetch(`https://finnhub.io/api/v1/quote?symbol=SPY&token=${apiKey}`);
+                const data = await response.json();
+                if (data.c) {
+                    alert(`API Key Valid! SPY: $${data.c}`);
+                } else {
+                    alert('Invalid API Key or rate limit. Try a new key.');
+                }
+            } catch (e) {
+                alert('API Test Failed: ' + e.message);
+            }
+        }
+        // ETF Proxy (approx SPX/VIX via SPY/UVXY)
+        async function useEtfProxy() {
+            const apiKey = document.getElementById('apiKey').value;
+            if (!apiKey) {
+                alert('Enter API key for proxy!');
+                return;
+            }
+            try {
+                // SPY for SPX proxy
+                const spyResponse = await fetch(`https://finnhub.io/api/v1/quote?symbol=SPY&token=${apiKey}`);
+                const spyData = await spyResponse.json();
+                if (spyData.c) {
+                    document.getElementById('spx').value = (spyData.c * 10).toFixed(2); // SPY ~ SPX / 10
+                }
+                // UVXY for VIX proxy (rough, UVXY ~ 1.5 * VIX / 100 or calibrate)
+                const uvxyResponse = await fetch(`https://finnhub.io/api/v1/quote?symbol=UVXY&token=${apiKey}`);
+                const uvxyData = await uvxyResponse.json();
+                if (uvxyData.c) {
+                    const vixApprox = uvxyData.c * (15.39 / 50); // Calibrate to ~15.39 from sample UVXY ~50
+                    const ivApprox = vixApprox * 0.597; // Calibrate to HV ~9.19
+                    document.getElementById('iv').value = ivApprox.toFixed(2);
+                }
+                document.getElementById('currentGreeks').innerHTML = '<span class="fetch-success">ETF Proxy Applied: SPX/SPY, IV/UVXY approx. Click Update.</span>';
+                updateAll();
+            } catch (e) {
+                alert('ETF Proxy Failed: ' + e.message + '. Use manual inputs.');
+            }
+        }
+        // Live Data Fetch with Finnhub
         async function fetchLiveData(attempt = 1, maxAttempts = 3) {
             try {
                 const apiKey = document.getElementById('apiKey')?.value;
                 if (!apiKey) {
-                    document.getElementById('currentGreeks').innerHTML = '<span class="error">API_ERROR_NO_KEY: Please enter a valid Alpha Vantage API key.</span>';
+                    document.getElementById('currentGreeks').innerHTML = '<span class="error">API_ERROR_NO_KEY: Please enter a valid Finnhub API key.</span>';
                     return;
                 }
                 console.log('API_FETCH_START: Attempt', attempt, 'Using key', apiKey.substring(0, 5) + '...');
-                localStorage.setItem('alphaVantageApiKey', apiKey);
+                localStorage.setItem('finnhubApiKey', apiKey);
                 const timestamp = Date.now();
-                // Fetch SPX via Alpha Vantage
-                const spxResponse = await fetch(`https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=SPX&apikey=${apiKey}&_=${timestamp}`);
+                // Fetch SPX
+                const spxResponse = await fetch(`https://finnhub.io/api/v1/quote?symbol=SPX&token=${apiKey}&_=${timestamp}`);
                 if (!spxResponse.ok) {
                     if (spxResponse.status === 429 && attempt < maxAttempts) {
                         const delay = Math.pow(2, attempt) * 1000;
@@ -213,20 +265,20 @@
                     throw new Error(`API_ERROR_SPX_FETCH: Status ${spxResponse.status}`);
                 }
                 const spxData = await spxResponse.json();
-                if (spxData['Error Message'] || !spxData['Global Quote']) throw new Error('API_ERROR_SPX_INVALID: No current price returned');
-                const spxPrice = parseFloat(spxData['Global Quote']['05. price']) || 6486;
+                if (spxData.c === undefined || spxData.c === null) throw new Error('API_ERROR_SPX_INVALID: No current price returned');
+                const spxPrice = spxData.c;
                 document.getElementById('spx').value = spxPrice.toFixed(2);
                 console.log('API_FETCH_SUCCESS_SPX:', spxPrice);
-                // Fetch VIX via Alpha Vantage
-                const vixResponse = await fetch(`https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=VIX&apikey=${apiKey}&_=${timestamp}`);
+                // Fetch VIX
+                const vixResponse = await fetch(`https://finnhub.io/api/v1/quote?symbol=VIX&token=${apiKey}&_=${timestamp}`);
                 if (!vixResponse.ok) throw new Error(`API_ERROR_VIX_FETCH: Status ${vixResponse.status}`);
                 const vixData = await vixResponse.json();
-                if (vixData['Error Message'] || !vixData['Global Quote']) throw new Error('API_ERROR_VIX_INVALID: No VIX data returned');
-                const vix = parseFloat(vixData['Global Quote']['05. price']) || 15.39;
-                const iv = vix * 0.597; // Calibrate to match HV ~9.19 at VIX 15.39
+                if (vixData.c === undefined || vixData.c === null) throw new Error('API_ERROR_VIX_INVALID: No VIX data returned');
+                const vix = vixData.c;
+                const iv = vix * 0.597; // Calibrate to HV ~9.19 at VIX ~15.39
                 document.getElementById('iv').value = iv.toFixed(2);
                 console.log('API_FETCH_SUCCESS_VIX_IV:', iv);
-                // Contango proxy (assume based on VIX level; improve in Step 2)
+                // Contango proxy
                 const vix1M = vix;
                 const vix2M = vix * 1.01;
                 const contangoStatus = vix1M > vix2M ?
@@ -234,6 +286,7 @@
                     '<span class="contango">Contango: Buy favorable for long-term (approximation)</span>';
                 document.getElementById('contangoStatus').innerHTML = contangoStatus;
                 console.log('API_FETCH_SUCCESS_CONTANGO:', contangoStatus);
+                // EDR
                 const edr = (iv / 100) * Math.sqrt(30 / 365) * 1.96;
                 const edrDisplay = `95% EDR: ${(edr * 100).toFixed(3)}% in 30 days`;
                 console.log('API_FETCH_SUCCESS_EDR:', edrDisplay);
@@ -242,7 +295,7 @@
             } catch (e) {
                 console.log('API_FETCH_ERROR:', e.message);
                 document.getElementById('chartError').style.display = 'block';
-                document.getElementById('chartError').innerHTML = `API_FETCH_ERROR: ${e.message}. Verify key at <a href="https://www.alphavantage.co" target="_blank">alphavantage.co</a>, check network, or use manual inputs.`;
+                document.getElementById('chartError').innerHTML = `API_FETCH_ERROR: ${e.message}. Verify key at <a href="https://finnhub.io" target="_blank">finnhub.io</a>, check network, or use manual/ETF proxy.`;
                 if (attempt < maxAttempts) {
                     const delay = Math.pow(2, attempt) * 1000;
                     console.log(`API_FETCH_RETRY: Attempt ${attempt + 1} in ${delay}ms...`);
@@ -255,7 +308,7 @@
             }
         }
         function clearApiKey() {
-            localStorage.removeItem('alphaVantageApiKey');
+            localStorage.removeItem('finnhubApiKey');
             document.getElementById('apiKey').value = '';
             document.getElementById('currentGreeks').innerHTML = 'API_KEY_CLEARED: Enter a new key or use manual inputs.';
             document.getElementById('contangoStatus').innerHTML = '';
@@ -501,13 +554,13 @@
         }
         window.addEventListener('load', function() {
             console.log('JS_INIT: Window loaded');
-            const savedApiKey = localStorage.getItem('alphaVantageApiKey');
+            const savedApiKey = localStorage.getItem('finnhubApiKey');
             if (savedApiKey) {
                 document.getElementById('apiKey').value = savedApiKey;
                 fetchLiveData();
             }
         });
     </script>
-    <p><strong>Notes:</strong> Model uses Black-Scholes (calibrated to match: delta ~81.73, gamma ~0.48, theta ~-340, vega ~4621 at SPX 6486). Enter Alpha Vantage API key to fetch live data or use manual inputs. IV calibrated from VIX for LEAPs. Contango/Backwardation is an approximation. Not financial advice.</p>
+    <p><strong>Notes:</strong> Model uses Black-Scholes (calibrated to match: delta ~81.73, gamma ~0.48, theta ~-340, vega ~4621 at SPX 6486). Enter Finnhub API key to fetch live data or use manual/ETF proxy. IV calibrated from VIX for LEAPs. Contango/Backwardation is an approximation. Not financial advice.</p>
 </body>
 </html>
