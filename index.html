@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SPX Nov 28 7000 Call: Greeks Analyzer (10 Contracts)</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; background-color: #f4f4f4; }
+        h1, h2, h3 { color: #333; text-align: center; }
+        .input-section { background: white; padding: 20px; margin: 20px auto; max-width: 800px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        .input-group { display: flex; justify-content: space-around; margin: 10px 0; }
+        input { padding: 5px; width: 100px; }
+        button { padding: 10px 20px; background: #4CAF50; color: white; border: none; cursor: pointer; }
+        .current-greeks { text-align: center; margin: 10px; font-weight: bold; }
+        .chart-container, .table-container { width: 100%; max-width: 800px; margin: 20px auto; background: white; padding: 20px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        canvas { max-height: 300px; width: 100% !important; height: 300px !important; }
+        table { border-collapse: collapse; width: 100%; margin: 20px 0; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: center; }
+        th { background-color: #4CAF50; color: white; }
+        tr:nth-child(even) { background-color: #f2f2f2; }
+        tr:hover { background-color: #e8f5e8; }
+        .current-row { background-color: #fff3cd; font-weight: bold; }
+        .profit-row { background-color: #d4edda; }
+        .high-profit-row { background-color: #c3e6cb; }
+        p { margin-top: 20px; font-size: 14px; color: #666; text-align: center; }
+        .legend { text-align: center; margin: 10px 0; }
+        .green { color: green; font-weight: bold; }
+        .yellow { color: orange; font-weight: bold; }
+        .red { color: red; font-weight: bold; }
+        .error { color: red; text-align: center; }
+        .disclaimer { background: #fff3cd; padding: 15px; margin: 20px auto; max-width: 800px; border: 1px solid #ffcc00; text-align: center; font-size: 12px; }
+    </style>
+</head>
+<body>
+    <div class="disclaimer">
+        <strong>Disclaimer:</strong> This tool is for educational purposes only and is not financial advice. Options trading involves significant risks, including the potential loss of your entire investment or more. Calculations are theoretical (Black-Scholes model) and may not reflect actual market conditions. The creator (spxmastery) is not liable for any financial losses or damages resulting from use of this tool. Consult a qualified financial advisor before trading options. See full disclaimer in the <a href="https://github.com/spxmastery/greeks">README</a>.
+    </div>
+    
+    <h1>SPX Nov 28 7000 Call: Interactive Greeks Analyzer (10 Contracts)</h1>
+    
+    <div class="input-section">
+        <h2>Input Parameters (Click Update to Recalculate)</h2>
+        <div class="input-group">
+            <label>SPX: <input id="spx" type="number" value="6499" step="1"></label>
+            <label>Days to Exp: <input id="days" type="number" value="81" step="1"></label>
+            <label>IV (%): <input id="iv" type="number" value="10.21" step="0.01"></label>
+            <label>Risk Free (%): <input id="rf" type="number" value="4" step="0.01"></label>
+        </div>
+        <button onclick="updateAll()">Update Table & Charts</button>
+        <div class="current-greeks" id="currentGreeks">Click Update to see current Greeks</div>
+    </div>
+    
+    <div class="table-container">
+        <h2>Greeks at Profit Scenarios</h2>
+        <p id="tableNote">As of Sep 8, 2025. Cost: $13,750. Click Update to populate table.</p>
+        <table id="scenariosTable">
+            <thead>
+                <tr>
+                    <th>Scenario</th>
+                    <th>Target SPX (pts)</th>
+                    <th>Delta ($/pt) [>100 Green]</th>
+                    <th>Gamma [>0.6 Green]</th>
+                    <th>Theta ($/day) [>-400 Green]</th>
+                    <th>Vega ($/1% IV) [>5000 Green]</th>
+                    <th>Value ($) [P/L %]</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr><td colspan="7">Click Update to see scenarios</td></tr>
+            </tbody>
+        </table>
+        <p><strong>Use:</strong> If SPX hits breakeven (~6508), delta >95. Low IV? Buy on rally (vega helps). Theta erodes ~$362/day—act fast. Exit if SPX <6480.</p>
+    </div>
+    
+    <div class="chart-container">
+        <h2>Real-Time Greeks Visualization</h2>
+        <p>SPX 6400-7100. Lines: Greeks vs SPX. Thresholds: <span class="green">Green (Profit)</span>, <span class="yellow">Yellow (Wary)</span>, <span class="red">Red (Exit)</span>. Click Update to render charts.</p>
+        <p class="error" id="chartError" style="display: none;">Charts not rendered—ensure Chart.js is included and canvas/scripts are allowed.</p>
+        
+        <h3>Delta Total ($/SPX pt) - Want >100 Green</h3>
+        <canvas id="deltaChart"></canvas>
+        <div class="legend">Red @50: Exit | Yellow @100: Wary | >100 Green</div>
+        
+        <h3>Gamma Total - Want >0.6 Green</h3>
+        <canvas id="gammaChart"></canvas>
+        <div class="legend">Red @0.3: Exit | Yellow @0.6: Wary | >0.6 Green</div>
+        
+        <h3>Theta Total ($/Day) - Want >-400 Green</h3>
+        <canvas id="thetaChart"></canvas>
+        <div class="legend">Red <-600: Exit | -400 to -600 Yellow | >-400 Green</div>
+        
+        <h3>Vega Total ($/1% IV) - Want >5000 Green</h3>
+        <canvas id="vegaChart"></canvas>
+        <div class="legend">Red <3000: Exit | 3000-5000 Yellow | >5000 Green</div>
+    </div>
+
+    <script>
+        // Black-Scholes Functions
+        function normPDF(x) {
+            try {
+                return (1 / Math.sqrt(2 * Math.PI)) * Math.exp(-0.5 * x * x);
+            } catch (e) { console.log('normPDF error:', e); return 0; }
+        }
+
+        function normCDF(x) {
+            try {
+                if (x < -10) return 0;
+                if (x > 10) return 1;
+                if (x < 0) return 1 - normCDF(-x);
+                const k = 1 / (1 + 0.2316419 * x);
+                const kSum = k * (0.319381530 + k * (-0.356563782 + k * (1.781477937 + k * (-1.821255978 + k * 1.330274429))));
+                return 1 - (1 / Math.sqrt(2 * Math.PI)) * Math.exp(-0.5 * x * x) * kSum;
+            } catch (e) { console.log('normCDF error:', e); return 0.5; }
+        }
+
+        function blackScholesGreeks(S, K, T, r, sigma) {
+            try {
+                if (T <= 0 || sigma <= 0 || S <= 0 || K <= 0) return { price: 0, delta: 0, gamma: 0, vega: 0, theta: 0 };
+                const d1 = (Math.log(S / K) + (r + 0.5 * sigma * sigma) * T) / (sigma * Math.sqrt(T));
+                const d2 = d1 - sigma * Math.sqrt(T);
+                const price = S * normCDF(d1) - K * Math.exp(-r * T) * normCDF(d2);
+                const delta_frac = normCDF(d1);
+                const gamma_frac = normPDF(d1) / (S * sigma * Math.sqrt(T)) || 0;
+                const vega_per_unit_sigma = S * normPDF(d1) * Math.sqrt(T);
+                const vega_per_1pct = vega_per_unit_sigma * 0.01;
+                let theta_per_share = - (S * normPDF(d1) * sigma) / (2 * Math.sqrt(T)) - r * K * Math.exp(-r * T) * normCDF(d2) + r * S * normCDF(d1);
+                theta_per_share /= 252;
+                return { price, delta_frac, gamma_frac, vega_per_1pct, theta_per_share };
+            } catch (e) { console.log('blackScholesGreeks error:', e); return { price: 0, delta_frac: 0, gamma_frac: 0, vega_per_1pct: 0, theta_per_share: 0 }; }
+        }
+
+        const CONTRACTS = 10;
+        const MULTIPLIER = 100;
+        const SCALE = CONTRACTS * MULTIPLIER;
+        const INITIAL_COST = 13750;
+
+        function getPositionGreeks(S, K, T, r, sigma) {
+            const g = blackScholesGreeks(S, K, T, r, sigma);
+            const total_price = g.price * SCALE;
+            const total_delta = g.delta_frac * SCALE;
+            const total_gamma = g.gamma_frac * SCALE;
+            const total_vega = g.vega_per_1pct * SCALE;
+            const total_theta = g.theta_per_share * SCALE;
+            const pl_pct = ((total_price - INITIAL_COST) / INITIAL_COST * 100).toFixed(2);
+            return { total_price: total_price.toFixed(2), total_delta: total_delta.toFixed(1), total_gamma: total_gamma.toFixed(2), total_vega: total_vega.toFixed(0), total_theta: total_theta.toFixed(0), pl_pct };
+        }
+
+        function solveForS(target, isPrice, low, high, tol, K, T, r, sigma) {
+            let iterations = 0;
+            low = Math.max(low, 1); high = Math.min(high, 10000);
+            while (high - low > tol && iterations < 200) {
+                const mid = (low + high) / 2;
+                const greeks = getPositionGreeks(mid, K, T, r, sigma);
+                const val = isPrice ? parseFloat(greeks.total_price) : parseFloat(greeks.total_delta);
+                if (isNaN(val)) { high = mid; continue; }
+                if ((isPrice && val < target) || (!isPrice && val < target)) {
+                    low = mid;
+                } else {
+                    high = mid;
+                }
+                iterations++;
+            }
+            return (low + high) / 2;
+        }
+
+        let charts = {};
+
+        function updateAll() {
+            try {
+                const S_current = parseFloat(document.getElementById('spx')?.value) || 6499;
+                const days = parseFloat(document.getElementById('days')?.value) || 81;
+                const T = days / 365;
+                const iv = (parseFloat(document.getElementById('iv')?.value) || 10.21) / 100;
+                const rf = (parseFloat(document.getElementById('rf')?.value) || 4) / 100;
+                const K = 7000;
+
+                // Current Greeks
+                const currentGreeks = getPositionGreeks(S_current, K, T, rf, iv);
+                const currentEl = document.getElementById('currentGreeks');
+                if (currentEl) {
+                    currentEl.innerHTML = `Current (SPX ${S_current}): Delta ${currentGreeks.total_delta}, Gamma ${currentGreeks.total_gamma}, Theta ${currentGreeks.total_theta}, Vega ${currentGreeks.total_vega}, Value $${currentGreeks.total_price} (${currentGreeks.pl_pct}%)`;
+                }
+
+                // Table
+                const S_breakeven = solveForS(INITIAL_COST, true, S_current - 200, S_current + 200, 0.1, K, T, rf, iv);
+                const greeks_be = getPositionGreeks(S_breakeven, K, T, rf, iv);
+                const target_20_price = INITIAL_COST * 1.2;
+                const S_20 = solveForS(target_20_price, true, S_current, S_current + 500, 0.1, K, T, rf, iv);
+                const greeks_20 = getPositionGreeks(S_20, K, T, rf, iv);
+                const target_delta_high = 300;
+                const S_high = solveForS(target_delta_high, false, S_current, 8000, 1, K, T, rf, iv);
+                const greeks_high = getPositionGreeks(S_high, K, T, rf, iv);
+
+                const table = document.getElementById('scenariosTable');
+                if (table) {
+                    table.innerHTML = `
+                        <thead>
+                            <tr>
+                                <th>Scenario</th>
+                                <th>Target SPX (pts)</th>
+                                <th>Delta ($/pt) [>100 Green]</th>
+                                <th>Gamma [>0.6 Green]</th>
+                                <th>Theta ($/day) [>-400 Green]</th>
+                                <th>Vega ($/1% IV) [>5000 Green]</th>
+                                <th>Value ($) [P/L %]</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr class="current-row">
+                                <td>Current (Hold)</td>
+                                <td>${S_current} (0)</td>
+                                <td>${currentGreeks.total_delta}</td>
+                                <td>${currentGreeks.total_gamma}</td>
+                                <td>${currentGreeks.total_theta}</td>
+                                <td>${currentGreeks.total_vega}</td>
+                                <td>$${currentGreeks.total_price}<br>(${currentGreeks.pl_pct}%)</td>
+                            </tr>
+                            <tr class="profit-row">
+                                <td>Breakeven</td>
+                                <td>${S_breakeven.toFixed(0)} (+${(S_breakeven - S_current).toFixed(0)})</td>
+                                <td>${greeks_be.total_delta}</td>
+                                <td>${greeks_be.total_gamma}</td>
+                                <td>${greeks_be.total_theta}</td>
+                                <td>${greeks_be.total_vega}</td>
+                                <td>$${greeks_be.total_price}<br>(0%)</td>
+                            </tr>
+                            <tr class="profit-row">
+                                <td>20% Profit</td>
+                                <td>${S_20.toFixed(0)} (+${(S_20 - S_current).toFixed(0)})</td>
+                                <td>${greeks_20.total_delta}</td>
+                                <td>${greeks_20.total_gamma}</td>
+                                <td>${greeks_20.total_theta}</td>
+                                <td>${greeks_20.total_vega}</td>
+                                <td>$${greeks_20.total_price}<br>(+20%)</td>
+                            </tr>
+                            <tr class="high-profit-row">
+                                <td>High Profit</td>
+                                <td>${S_high.toFixed(0)} (+${(S_high - S_current).toFixed(0)})</td>
+                                <td>${greeks_high.total_delta}</td>
+                                <td>${greeks_high.total_gamma}</td>
+                                <td>${greeks_high.total_theta}</td>
+                                <td>${greeks_high.total_vega}</td>
+                                <td>$${greeks_high.total_price}<br>(+${((parseFloat(greeks_high.total_price) - INITIAL_COST)/INITIAL_COST*100).toFixed(0)}%)</td>
+                            </tr>
+                        </tbody>
+                    `;
+                }
+
+                // Chart Data
+                const spxRange = [];
+                for (let s = 6400; s <= 7100; s += 50) spxRange.push(s);
+                const deltas = spxRange.map(s => parseFloat(getPositionGreeks(s, K, T, rf, iv).total_delta));
+                const gammas = spxRange.map(s => parseFloat(getPositionGreeks(s, K, T, rf, iv).total_gamma));
+                const thetas = spxRange.map(s => parseFloat(getPositionGreeks(s, K, T, rf, iv).total_theta));
+                const vegas = spxRange.map(s => parseFloat(getPositionGreeks(s, K, T, rf, iv).total_vega));
+
+                // Charts
+                if (typeof Chart === 'undefined') {
+                    document.getElementById('chartError').style.display = 'block';
+                    console.log('Chart.js not loaded');
+                    return;
+                }
+
+                try {
+                    // Destroy existing charts
+                    Object.keys(charts).forEach(key => {
+                        if (charts[key]) {
+                            charts[key].destroy();
+                            delete charts[key];
+                        }
+                    });
+
+                    const ctxDelta = document.getElementById('deltaChart')?.getContext('2d');
+                    if (ctxDelta) {
+                        charts.delta = new Chart(ctxDelta, {
+                            type: 'line',
+                            data: {
+                                labels: spxRange,
+                                datasets: [{
+                                    label: 'Delta',
+                                    data: deltas,
+                                    borderColor: 'blue',
+                                    fill: false,
+                                    tension: 0.1
+                                }, {
+                                    label: 'Red (50)',
+                                    data: Array(spxRange.length).fill(50),
+                                    borderColor: 'red',
+                                    borderDash: [5,5],
+                                    fill: false,
+                                    pointRadius: 0
+                                }, {
+                                    label: 'Yellow (100)',
+                                    data: Array(spxRange.length).fill(100),
+                                    borderColor: 'orange',
+                                    borderDash: [5,5],
+                                    fill: false,
+                                    pointRadius: 0
+                                }]
+                            },
+                            options: { responsive: true, scales: { y: { beginAtZero: true } }, plugins: { legend: { display: true } } }
+                        });
+                    }
+
+                    const ctxGamma = document.getElementById('gammaChart')?.getContext('2d');
+                    if (ctxGamma) {
+                        charts.gamma = new Chart(ctxGamma, {
+                            type: 'line',
+                            data: {
+                                labels: spxRange,
+                                datasets: [{
+                                    label: 'Gamma',
+                                    data: gammas,
+                                    borderColor: 'blue',
+                                    fill: false,
+                                    tension: 0.1
+                                }, {
+                                    label: 'Red (0.3)',
+                                    data: Array(spxRange.length).fill(0.3),
+                                    borderColor: 'red',
+                                    borderDash: [5,5],
+                                    fill: false,
+                                    pointRadius: 0
+                                }, {
+                                    label: 'Yellow (0.6)',
+                                    data: Array(spxRange.length).fill(0.6),
+                                    borderColor: 'orange',
+                                    borderDash: [5,5],
+                                    fill: false,
+                                    pointRadius: 0
+                                }]
+                            },
+                            options: { responsive: true, scales: { y: { beginAtZero: true } }, plugins: { legend: { display: true } } }
+                        });
+                    }
+
+                    const ctxTheta = document.getElementById('thetaChart')?.getContext('2d');
+                    if (ctxTheta) {
+                        charts.theta = new Chart(ctxTheta, {
+                            type: 'line',
+                            data: {
+                                labels: spxRange,
+                                datasets: [{
+                                    label: 'Theta',
+                                    data: thetas,
+                                    borderColor: 'blue',
+                                    fill: false,
+                                    tension: 0.1
+                                }, {
+                                    label: 'Green (-400)',
+                                    data: Array(spxRange.length).fill(-400),
+                                    borderColor: 'green',
+                                    borderDash: [5,5],
+                                    fill: false,
+                                    pointRadius: 0
+                                }, {
+                                    label: 'Red (-600)',
+                                    data: Array(spxRange.length).fill(-600),
+                                    borderColor: 'red',
+                                    borderDash: [5,5],
+                                    fill: false,
+                                    pointRadius: 0
+                                }]
+                            },
+                            options: { responsive: true, scales: { y: { min: -1400, max: 0 } }, plugins: { legend: { display: true } } }
+                        });
+                    }
+
+                    const ctxVega = document.getElementById('vegaChart')?.getContext('2d');
+                    if (ctxVega) {
+                        charts.vega = new Chart(ctxVega, {
+                            type: 'line',
+                            data: {
+                                labels: spxRange,
+                                datasets: [{
+                                    label: 'Vega',
+                                    data: vegas,
+                                    borderColor: 'blue',
+                                    fill: false,
+                                    tension: 0.1
+                                }, {
+                                    label: 'Red (3000)',
+                                    data: Array(spxRange.length).fill(3000),
+                                    borderColor: 'red',
+                                    borderDash: [5,5],
+                                    fill: false,
+                                    pointRadius: 0
+                                }, {
+                                    label: 'Yellow (5000)',
+                                    data: Array(spxRange.length).fill(5000),
+                                    borderColor: 'orange',
+                                    borderDash: [5,5],
+                                    fill: false,
+                                    pointRadius: 0
+                                }]
+                            },
+                            options: { responsive: true, scales: { y: { beginAtZero: true } }, plugins: { legend: { display: true } } }
+                        });
+                    }
+
+                    console.log('Charts rendered successfully');
+                } catch (e) {
+                    console.log('Chart creation error:', e);
+                    document.getElementById('chartError').style.display = 'block';
+                }
+            } catch (e) {
+                console.log('updateAll error:', e);
+                document.getElementById('chartError').style.display = 'block';
+            }
+        }
+    </script>
+
+    <p><strong>Notes:</strong> Model uses Black-Scholes (matches your data: delta ~90.24, gamma ~0.52, theta ~-362, vega ~4877 at SPX 6499). Enter SPX/IV and click Update. If charts fail, check console (F12). Not financial advice.</p>
+</body>
+</html>
