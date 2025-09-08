@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SPX Mastery Long-Term Options Analyzer (Build 1, Version 1)</title>
+    <title>SPX Mastery Long-Term Options Analyzer (Build 1, Version 2)</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js" onload="console.log('CDN_SUCCESS_1: jsDelivr loaded')" onerror="console.log('CDN_ERROR_1: jsDelivr failed'); loadFallbackCDN(1)"></script>
     <script>
         function loadFallbackCDN(attempt) {
@@ -61,7 +61,7 @@
     <div class="disclaimer">
         <strong>Disclaimer:</strong> This tool is for educational purposes only and is not financial advice. Options trading involves significant risks, including the potential loss of your entire investment or more. Calculations are theoretical (Black-Scholes model) and may not reflect actual market conditions. The creator (spxmastery) is not liable for any financial losses or damages resulting from use of this tool. Consult a qualified financial advisor before trading options. See full disclaimer in the <a href="https://github.com/spxmastery/greeks">README</a>.
     </div>
-    <h1>SPX Mastery Long-Term Options Analyzer (Build 1, Version 1)</h1>
+    <h1>SPX Mastery Long-Term Options Analyzer (Build 1, Version 2)</h1>
     <div class="input-section">
         <h2>Input Parameters (Click Update to Recalculate)</h2>
         <div class="api-section">
@@ -70,10 +70,10 @@
             <button onclick="clearApiKey()">Clear API Key</button>
         </div>
         <div class="input-group">
-            <label>SPX: <input id="spx" type="number" value="6485" step="1"></label>
-            <label>Days to Exp: <input id="days" type="number" value="81" step="1"></label>
-            <label>IV (%): <input id="iv" type="number" value="15.63" step="0.01"></label>
-            <label>Risk Free (%): <input id="rf" type="number" value="4" step="0.01"></label>
+            <label>SPX: <input id="spx" type="number" value="6485" step="1" placeholder="Fallback: 6485"></label>
+            <label>Days to Exp: <input id="days" type="number" value="81" step="1" placeholder="Fallback: 81"></label>
+            <label>IV (%): <input id="iv" type="number" value="15.63" step="0.01" placeholder="Fallback: 15.63"></label>
+            <label>Risk Free (%): <input id="rf" type="number" value="4" step="0.01" placeholder="Fallback: 4"></label>
         </div>
         <div id="contangoStatus" style="text-align: center; margin: 10px;"></div>
         <button onclick="updateAll()">Update Table & Charts</button>
@@ -117,7 +117,7 @@
         <canvas id="vegaChart"></canvas>
         <div class="legend">Red <3000: Exit | 3000-5000 Yellow | >5000 Green</div>
     </div>
-    <p class="version">Build 1, Version 1 - Sep 8, 2025</p>
+    <p class="version">Build 1, Version 2 - Sep 8, 2025</p>
     <script>
         console.log('JS_INIT: Script loaded');
         // Black-Scholes Functions
@@ -150,9 +150,9 @@
                 const gamma_frac = normPDF(d1) / (S * sigma * Math.sqrt(T)) || 0;
                 const vega_per_unit_sigma = S * normPDF(d1) * Math.sqrt(T);
                 const vega_per_1pct = vega_per_unit_sigma * 0.01;
-                let theta_per_share = - (S * normPDF(d1) * sigma) / (2 * Math.sqrt(T)) - r * K * Math.exp(-r * T) * normCDF(d2) + r * S * normCDF(d1);
+                let theta_per_share = (-S * normPDF(d1) * sigma) / (2 * Math.sqrt(T)) - r * K * Math.exp(-r * T) * normCDF(d2);
                 theta_per_share /= 365; // Calendar days
-                console.log('GREEKS_CALC_END: delta_frac=', delta_frac, 'theta_per_share=', theta_per_share);
+                console.log('GREEKS_CALC_END: price=', price, 'delta_frac=', delta_frac, 'theta_per_share=', theta_per_share);
                 return { price, delta_frac, gamma_frac, vega_per_1pct, theta_per_share };
             } catch (e) {
                 console.log('GREEKS_ERROR_BS:', e);
@@ -166,7 +166,7 @@
         function getPositionGreeks(S, K, T, r, sigma) {
             console.log('POSITION_GREEKS_START: scale=', SCALE, 'sigma=', sigma);
             const g = blackScholesGreeks(S, K, T, r, sigma);
-            const total_price = g.price * SCALE;
+            const total_price = g.price * MULTIPLIER * CONTRACTS;
             const total_delta = g.delta_frac * SCALE;
             const total_gamma = g.gamma_frac * SCALE;
             const total_vega = g.vega_per_1pct * SCALE;
@@ -178,18 +178,15 @@
         function solveForS(target, isPrice, low, high, tol, K, T, r, sigma) {
             let iterations = 0;
             low = Math.max(low, 1); high = Math.min(high, 10000);
-            while (high - low > tol && iterations < 500) {
+            while (high - low > tol && iterations < 1000) {
                 const mid = (low + high) / 2;
                 const greeks = getPositionGreeks(mid, K, T, r, sigma);
                 const val = isPrice ? parseFloat(greeks.total_price) : parseFloat(greeks.total_delta);
                 if (isNaN(val)) { high = mid; continue; }
                 const diff = isPrice ? (val - target) : (val - target);
                 if (Math.abs(diff) < tol) return mid;
-                if (diff < 0) {
-                    low = mid;
-                } else {
-                    high = mid;
-                }
+                if (diff < 0) low = mid;
+                else high = mid;
                 iterations++;
             }
             return (low + high) / 2;
@@ -204,11 +201,12 @@
                 console.log('API_FETCH_START: Attempt', attempt, 'Using key', apiKey.substring(0, 5) + '...');
                 localStorage.setItem('finnhubApiKey', apiKey);
                 const timestamp = Date.now();
-                const spxResponse = await fetch(`https://finnhub.io/api/v1/quote?symbol=SPX&token=${apiKey}&_=${timestamp}`);
+                const spxResponse = await fetch(`https://finnhub.io/api/v1/quote?symbol=^SPX&token=${apiKey}&_=${timestamp}`);
                 if (!spxResponse.ok) {
                     if (spxResponse.status === 429 && attempt < maxAttempts) {
-                        console.log('API_FETCH_RETRY: Rate limit hit, retrying in 1s...');
-                        await new Promise(resolve => setTimeout(resolve, 1000));
+                        const delay = Math.pow(2, attempt) * 1000;
+                        console.log(`API_FETCH_RETRY: Rate limit hit, retrying in ${delay}ms...`);
+                        await new Promise(resolve => setTimeout(resolve, delay));
                         return fetchLiveData(attempt + 1, maxAttempts);
                     }
                     throw new Error(`API_ERROR_SPX_FETCH: Status ${spxResponse.status}`);
@@ -218,39 +216,37 @@
                 const spxPrice = spxData.c || 6485;
                 document.getElementById('spx').value = spxPrice.toFixed(2);
                 console.log('API_FETCH_SUCCESS_SPX:', spxPrice);
-                const vixResponse = await fetch(`https://finnhub.io/api/v1/quote?symbol=VIX&token=${apiKey}&_=${timestamp}`);
+                const vixResponse = await fetch(`https://finnhub.io/api/v1/quote?symbol=^VIX&token=${apiKey}&_=${timestamp}`);
                 if (!vixResponse.ok) throw new Error(`API_ERROR_VIX_FETCH: Status ${vixResponse.status}`);
                 const vixData = await vixResponse.json();
                 const vix = vixData.c || 15.41;
-                const iv = vix; // Use live IV directly
+                const iv = vix; // Use VIX directly as IV
                 document.getElementById('iv').value = iv.toFixed(2);
                 console.log('API_FETCH_SUCCESS_VIX_IV:', iv);
-                const vix1MResponse = await fetch(`https://finnhub.io/api/v1/quote?symbol=VIX&token=${apiKey}&_=${timestamp}`);
-                const vix1MData = await vix1MResponse.json();
-                const vix1M = vix1MData.c || 15.41;
-                const vix2M = vix1M * 1.01; // Proxy for second-month futures
+                const vix1M = vix;
+                const vix2M = vix * 1.01; // Proxy for second-month futures
                 const contangoStatus = vix1M > vix2M ?
                     '<span class="backwardation">Backwardation: High volatility—short-term gain potential (approximation)</span>' :
                     '<span class="contango">Contango: Buy favorable for long-term (approximation)</span>';
                 document.getElementById('contangoStatus').innerHTML = contangoStatus;
                 console.log('API_FETCH_SUCCESS_CONTANGO:', contangoStatus);
                 const edr = (iv / 100) * Math.sqrt(30 / 365) * 1.96;
-                const edrDisplay = `95% EDR: ${Math.abs(edr * 100).toFixed(3)}% in 30 days`;
+                const edrDisplay = `95% EDR: ${(edr * 100).toFixed(3)}% in 30 days`;
                 console.log('API_FETCH_SUCCESS_EDR:', edrDisplay);
                 document.getElementById('currentGreeks').innerHTML = `<span class="fetch-success">API_FETCH_SUCCESS: SPX: ${spxPrice.toFixed(2)}, IV: ${iv.toFixed(2)}, VIX: ${vix.toFixed(2)}, ${contangoStatus}. ${edrDisplay}</span><br>` + document.getElementById('currentGreeks').innerHTML;
                 updateAll();
             } catch (e) {
                 console.log('API_FETCH_ERROR:', e.message);
                 document.getElementById('chartError').style.display = 'block';
-                document.getElementById('chartError').innerHTML = `API_FETCH_ERROR: ${e.message}. Check API key, network, or use manual inputs. <a href="https://finnhub.io" target="_blank">Get a free key</a>.`;
+                document.getElementById('chartError').innerHTML = `API_FETCH_ERROR: ${e.message}. Verify key at <a href="https://finnhub.io" target="_blank">finnhub.io</a>, check network, or use manual inputs.`;
                 if (attempt < maxAttempts) {
-                    console.log('API_FETCH_RETRY: Attempt', attempt + 1, 'in 1s...');
-                    await new Promise(resolve => setTimeout(resolve, 1000));
+                    const delay = Math.pow(2, attempt) * 1000;
+                    console.log(`API_FETCH_RETRY: Attempt ${attempt + 1} in ${delay}ms...`);
+                    await new Promise(resolve => setTimeout(resolve, delay));
                     return fetchLiveData(attempt + 1, maxAttempts);
                 }
                 document.getElementById('currentGreeks').innerHTML = `<span class="error">API_FETCH_FAILED: All attempts failed (${e.message}). Using manual inputs (SPX: 6485, IV: 15.63).</span>`;
-                document.getElementById('spx').value = 6485;
-                document.getElementById('iv').value = 15.63;
+                document.getElementById('contangoStatus').innerHTML = '<span class="contango">Contango: Buy favorable for long-term (fallback approximation)</span>';
                 updateAll();
             }
         }
@@ -258,6 +254,7 @@
             localStorage.removeItem('finnhubApiKey');
             document.getElementById('apiKey').value = '';
             document.getElementById('currentGreeks').innerHTML = 'API_KEY_CLEARED: Enter a new key or use manual inputs.';
+            document.getElementById('contangoStatus').innerHTML = '';
         }
         let charts = {};
         function updateAll() {
@@ -273,16 +270,16 @@
                 const currentGreeks = getPositionGreeks(S_current, K, T, rf, iv);
                 const currentEl = document.getElementById('currentGreeks');
                 if (currentEl) {
-                    currentEl.innerHTML = `Current (SPX ${S_current}): Delta ${currentGreeks.total_delta}, Gamma ${currentGreeks.total_gamma}, Theta ${currentGreeks.total_theta}, Vega ${currentGreeks.total_vega}, Value $${currentGreeks.total_price} (${currentGreeks.pl_pct}%)<br>95% EDR: ${Math.abs((iv * Math.sqrt(30 / 365) * 1.96) * 100).toFixed(3)}% in 30 days<br>` + (currentEl.innerHTML.includes('API_FETCH_SUCCESS') || currentEl.innerHTML.includes('API_FETCH_FAILED') ? currentEl.innerHTML : '');
+                    currentEl.innerHTML = `Current (SPX ${S_current}): Delta ${currentGreeks.total_delta}, Gamma ${currentGreeks.total_gamma}, Theta ${currentGreeks.total_theta}, Vega ${currentGreeks.total_vega}, Value $${currentGreeks.total_price} (${currentGreeks.pl_pct}%)<br>95% EDR: ${(iv * Math.sqrt(30 / 365) * 1.96 * 100).toFixed(3)}% in 30 days<br>` + (currentEl.innerHTML.includes('API_FETCH_SUCCESS') || currentEl.innerHTML.includes('API_FETCH_FAILED') ? currentEl.innerHTML : '');
                 }
                 console.log('GREEKS_CALC: Delta', currentGreeks.total_delta, 'expected ~82.20, Theta', currentGreeks.total_theta, 'expected ~-342.13, Vega', currentGreeks.total_vega, 'expected ~4634.36');
-                const S_breakeven = solveForS(INITIAL_COST, true, S_current - 500, S_current + 500, 0.01, K, T, rf, iv);
+                const S_breakeven = solveForS(INITIAL_COST, true, S_current - 1000, S_current + 1000, 0.001, K, T, rf, iv);
                 const greeks_be = getPositionGreeks(S_breakeven, K, T, rf, iv);
                 const target_20_price = INITIAL_COST * 1.2;
-                const S_20 = solveForS(target_20_price, true, S_current, S_current + 1000, 0.01, K, T, rf, iv);
+                const S_20 = solveForS(target_20_price, true, S_current, S_current + 1000, 0.001, K, T, rf, iv);
                 const greeks_20 = getPositionGreeks(S_20, K, T, rf, iv);
                 const target_delta_high = 300;
-                const S_high = solveForS(target_delta_high, false, S_current, 8000, 0.01, K, T, rf, iv);
+                const S_high = solveForS(target_delta_high, false, S_current, 8000, 0.001, K, T, rf, iv);
                 const greeks_high = getPositionGreeks(S_high, K, T, rf, iv);
                 const table = document.getElementById('scenariosTable');
                 if (table) {
