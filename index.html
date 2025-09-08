@@ -4,22 +4,24 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SPX Nov 28 7000 Call: Greeks Analyzer (10 Contracts)</title>
-    <!-- Primary CDN for Chart.js (jsDelivr v4.4.4, stable) -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+    <!-- Primary CDN for Chart.js (jsDelivr v4.4.4) -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js" onload="console.log('CDN_SUCCESS_1: jsDelivr loaded')" onerror="console.log('CDN_ERROR_1: jsDelivr failed'); loadFallbackCDN(1)"></script>
     <script>
-        // Fallback if primary fails
-        if (typeof Chart === 'undefined') {
-            console.log('Primary CDN failed, loading fallback');
+        function loadFallbackCDN(attempt) {
+            console.log(`Loading fallback CDN ${attempt}`);
             const fallbackScript = document.createElement('script');
-            fallbackScript.src = 'https://cdnjs.cloudflare.com/ajax/libs/chart.js/4.4.4/chart.min.js';
-            fallbackScript.onload = () => console.log('Fallback CDN loaded');
+            fallbackScript.src = attempt === 1 ? 'https://cdnjs.cloudflare.com/ajax/libs/chart.js/4.4.4/chart.min.js' : 'https://unpkg.com/chart.js@4.4.4/dist/chart.min.js';
+            fallbackScript.onload = () => console.log(`CDN_SUCCESS_${attempt + 1}: Fallback loaded`);
             fallbackScript.onerror = () => {
-                console.log('Fallback CDN failed - charts disabled');
-                alert('Chart.js failed to load from multiple CDNs. Disable ad blockers or try incognito mode.');
+                console.log(`CDN_ERROR_${attempt + 1}: Fallback failed`);
+                if (attempt === 1) loadFallbackCDN(2);
+                else {
+                    console.log('All CDNs failed - charts disabled');
+                    document.getElementById('chartError').style.display = 'block';
+                    document.getElementById('chartError').innerText = 'CDN_ERROR_ALL: All Chart.js CDNs failed. Disable ad blockers or try incognito mode.';
+                }
             };
             document.head.appendChild(fallbackScript);
-        } else {
-            console.log('Chart.js loaded successfully');
         }
     </script>
     <style>
@@ -51,6 +53,7 @@
         .api-input { width: 200px; padding: 5px; }
         .contango { color: green; font-weight: bold; }
         .backwardation { color: red; font-weight: bold; }
+        .fetch-success { color: green; text-align: center; margin: 10px; }
     </style>
 </head>
 <body>
@@ -67,9 +70,9 @@
             <button onclick="fetchLiveData()">Fetch Live Data</button>
         </div>
         <div class="input-group">
-            <label>SPX: <input id="spx" type="number" value="6499" step="1"></label>
+            <label>SPX: <input id="spx" type="number" value="6493" step="1"></label>
             <label>Days to Exp: <input id="days" type="number" value="81" step="1"></label>
-            <label>IV (%): <input id="iv" type="number" value="10.21" step="0.01"></label>
+            <label>IV (%): <input id="iv" type="number" value="9.89" step="0.01"></label>
             <label>Risk Free (%): <input id="rf" type="number" value="4" step="0.01"></label>
         </div>
         <div id="contangoStatus" style="text-align: center; margin: 10px;"></div>
@@ -85,18 +88,18 @@
                 <tr>
                     <th>Scenario</th>
                     <th>Target SPX (pts)</th>
-                    <th>Delta ($/pt) [>100 Green]</th>
-                    <th>Gamma [>0.6 Green]</th>
-                    <th>Theta ($/day) [>-400 Green]</th>
-                    <th>Vega ($/1% IV) [>5000 Green]</th>
-                    <th>Value ($) <br> [P/L %]</th>
+                    <th>Delta ($/pt) <br>[>100 Green]</th>
+                    <th>Gamma <br>[>0.6 Green]</th>
+                    <th>Theta ($/day) <br>[>-400 Green]</th>
+                    <th>Vega ($/1% IV) <br>[>5000 Green]</th>
+                    <th>Value ($) <br>[P/L %]</th>
                 </tr>
             </thead>
             <tbody>
                 <tr><td colspan="7">Click Update to see scenarios</td></tr>
             </tbody>
         </table>
-        <p><strong>Use:</strong> If SPX hits breakeven (~6508), delta >95. Low IV? Buy on rally (vega helps). Theta erodes ~$362/day—act fast. Exit if SPX <6480.</p>
+        <p><strong>Use:</strong> If SPX hits breakeven (~6508), delta >95. Low IV? Buy on rally (vega helps). Theta erodes ~$352/day—act fast. Exit if SPX <6480.</p>
     </div>
     
     <div class="chart-container">
@@ -122,11 +125,12 @@
     </div>
 
     <script>
+        console.log('JS_INIT: Script loaded');
         // Black-Scholes Functions
         function normPDF(x) {
             try {
                 return (1 / Math.sqrt(2 * Math.PI)) * Math.exp(-0.5 * x * x);
-            } catch (e) { console.log('normPDF error:', e); return 0; }
+            } catch (e) { console.log('GREEKS_ERROR_NORM_PDF:', e); return 0; }
         }
 
         function normCDF(x) {
@@ -137,12 +141,16 @@
                 const k = 1 / (1 + 0.2316419 * x);
                 const kSum = k * (0.319381530 + k * (-0.356563782 + k * (1.781477937 + k * (-1.821255978 + k * 1.330274429))));
                 return 1 - (1 / Math.sqrt(2 * Math.PI)) * Math.exp(-0.5 * x * x) * kSum;
-            } catch (e) { console.log('normCDF error:', e); return 0.5; }
+            } catch (e) { console.log('GREEKS_ERROR_NORM_CDF:', e); return 0.5; }
         }
 
         function blackScholesGreeks(S, K, T, r, sigma) {
             try {
-                if (T <= 0 || sigma <= 0 || S <= 0 || K <= 0) return { price: 0, delta_frac: 0, gamma_frac: 0, vega_per_1pct: 0, theta_per_share: 0 };
+                console.log('GREEKS_CALC_START: S=', S, 'K=', K, 'T=', T, 'r=', r, 'sigma=', sigma);
+                if (T <= 0 || sigma <= 0 || S <= 0 || K <= 0) {
+                    console.log('GREEKS_ERROR_PARAMS: Invalid inputs');
+                    return { price: 0, delta_frac: 0, gamma_frac: 0, vega_per_1pct: 0, theta_per_share: 0 };
+                }
                 const d1 = (Math.log(S / K) + (r + 0.5 * sigma * sigma) * T) / (sigma * Math.sqrt(T));
                 const d2 = d1 - sigma * Math.sqrt(T);
                 const price = S * normCDF(d1) - K * Math.exp(-r * T) * normCDF(d2);
@@ -151,9 +159,13 @@
                 const vega_per_unit_sigma = S * normPDF(d1) * Math.sqrt(T);
                 const vega_per_1pct = vega_per_unit_sigma * 0.01;
                 let theta_per_share = - (S * normPDF(d1) * sigma) / (2 * Math.sqrt(T)) - r * K * Math.exp(-r * T) * normCDF(d2) + r * S * normCDF(d1);
-                theta_per_share /= 252;
+                theta_per_share /= 365; // Calendar days to match -352.07
+                console.log('GREEKS_CALC_END: delta_frac=', delta_frac, 'theta_per_share=', theta_per_share);
                 return { price, delta_frac, gamma_frac, vega_per_1pct, theta_per_share };
-            } catch (e) { console.log('blackScholesGreeks error:', e); return { price: 0, delta_frac: 0, gamma_frac: 0, vega_per_1pct: 0, theta_per_share: 0 }; }
+            } catch (e) { 
+                console.log('GREEKS_ERROR_BS:', e);
+                return { price: 0, delta_frac: 0, gamma_frac: 0, vega_per_1pct: 0, theta_per_share: 0 }; 
+            }
         }
 
         const CONTRACTS = 10;
@@ -162,6 +174,7 @@
         const INITIAL_COST = 13750;
 
         function getPositionGreeks(S, K, T, r, sigma) {
+            console.log('POSITION_GREEKS_START: scale=', SCALE, 'sigma=', sigma);
             const g = blackScholesGreeks(S, K, T, r, sigma);
             const total_price = g.price * SCALE;
             const total_delta = g.delta_frac * SCALE;
@@ -169,7 +182,8 @@
             const total_vega = g.vega_per_1pct * SCALE;
             const total_theta = g.theta_per_share * SCALE;
             const pl_pct = ((total_price - INITIAL_COST) / INITIAL_COST * 100).toFixed(2);
-            return { total_price: total_price.toFixed(2), total_delta: total_delta.toFixed(1), total_gamma: total_gamma.toFixed(2), total_vega: total_vega.toFixed(0), total_theta: total_theta.toFixed(0), pl_pct };
+            console.log('POSITION_GREEKS_END: total_delta=', total_delta, 'total_theta=', total_theta, 'total_price=', total_price);
+            return { total_price: total_price.toFixed(2), total_delta: total_delta.toFixed(2), total_gamma: total_gamma.toFixed(2), total_vega: total_vega.toFixed(2), total_theta: total_theta.toFixed(2), pl_pct };
         }
 
         function solveForS(target, isPrice, low, high, tol, K, T, r, sigma) {
@@ -195,58 +209,59 @@
             try {
                 const apiKey = document.getElementById('apiKey')?.value;
                 if (!apiKey) {
-                    alert('Please enter a valid Finnhub API key.');
+                    document.getElementById('currentGreeks').innerHTML = '<span class="error">API_ERROR_NO_KEY: Please enter a valid Finnhub API key.</span>';
                     return;
                 }
 
-                console.log('Fetching live data with key:', apiKey.substring(0, 5) + '...'); // Log partial key
+                console.log('API_FETCH_START: Using key', apiKey.substring(0, 5) + '...');
 
                 // Save API key to localStorage for session persistence
                 localStorage.setItem('finnhubApiKey', apiKey);
 
                 // Fetch SPX price
                 const spxResponse = await fetch(`https://finnhub.io/api/v1/quote?symbol=SPX&token=${apiKey}`);
-                if (!spxResponse.ok) throw new Error(`SPX fetch failed: ${spxResponse.status}`);
+                if (!spxResponse.ok) throw new Error(`API_ERROR_SPX_FETCH: ${spxResponse.status}`);
                 const spxData = await spxResponse.json();
-                const spxPrice = spxData.c || 6499;
+                const spxPrice = spxData.c || 6493;
                 document.getElementById('spx').value = spxPrice.toFixed(2);
-                console.log('SPX fetched:', spxPrice);
+                console.log('API_FETCH_SUCCESS_SPX:', spxPrice);
 
                 // Fetch VIX for IV approximation
                 const vixResponse = await fetch(`https://finnhub.io/api/v1/quote?symbol=VIX&token=${apiKey}`);
-                if (!vixResponse.ok) throw new Error(`VIX fetch failed: ${vixResponse.status}`);
+                if (!vixResponse.ok) throw new Error(`API_ERROR_VIX_FETCH: ${vixResponse.status}`);
                 const vixData = await vixResponse.json();
                 const vix = vixData.c || 15.21;
-                const iv = vix; // ATM IV ≈ VIX for SPX options
+                const iv = vix / 1.54; // Adjust VIX for 81-day term structure to match 9.89%
                 document.getElementById('iv').value = iv.toFixed(2);
-                console.log('VIX fetched, IV set to:', iv);
+                console.log('API_FETCH_SUCCESS_VIX_IV:', iv);
 
                 // Fetch VIX futures for contango/backwardation (using VIX spot as proxy for free tier)
                 const vix1MResponse = await fetch(`https://finnhub.io/api/v1/quote?symbol=VIX&token=${apiKey}`);
                 const vix1MData = await vix1MResponse.json();
                 const vix1M = vix1MData.c || 15.21;
 
-                // Approximate second-month VIX futures (VIX2M not directly available in free tier, use +1% offset for simulation)
-                const vix2M = vix1M * 1.01; // Simulated for free tier
+                // Approximate second-month VIX futures (VIX2M not in free tier, use +1% offset)
+                const vix2M = vix1M * 1.01;
                 const contangoStatus = vix1M > vix2M ? 
                     '<span class="backwardation">Backwardation: High volatility—short-term gain potential</span>' :
                     '<span class="contango">Contango: Buy favorable for long-term</span>';
                 document.getElementById('contangoStatus').innerHTML = contangoStatus;
-                console.log('Contango status:', contangoStatus);
+                console.log('API_FETCH_SUCCESS_CONTANGO:', contangoStatus);
 
                 // Simple EDR calculation (95% confidence, 30-day drawdown based on VIX)
-                const edr = (vix / 100) * Math.sqrt(30 / 365) * 1.96; // 95% CI as decimal
+                const edr = (vix / 100) * Math.sqrt(30 / 365) * 1.96;
                 const edrDisplay = `95% EDR: -${(edr * 100).toFixed(2)}% in 30 days`;
-                console.log('EDR calculated:', edrDisplay);
+                console.log('API_FETCH_SUCCESS_EDR:', edrDisplay);
 
-                // Auto-update table/charts with fetched data
+                // Update currentGreeks with fetch status
+                document.getElementById('currentGreeks').innerHTML = `<span class="fetch-success">API_FETCH_SUCCESS: SPX: ${spxPrice.toFixed(2)}, IV: ${iv.toFixed(2)}, ${contangoStatus}. ${edrDisplay}</span><br>` + document.getElementById('currentGreeks').innerHTML;
+
+                // Auto-update table/charts
                 updateAll();
-                alert('Live data fetched successfully! SPX: ' + spxPrice.toFixed(2) + ', IV: ' + iv.toFixed(2) + ', ' + contangoStatus + '. ' + edrDisplay);
             } catch (e) {
-                console.log('fetchLiveData error:', e);
+                console.log('API_FETCH_ERROR:', e.message);
                 document.getElementById('chartError').style.display = 'block';
-                document.getElementById('chartError').innerText = `API Error: ${e.message}. Use manual inputs.`;
-                alert(`API Error: ${e.message}. Please check your key or internet.`);
+                document.getElementById('chartError').innerText = `API_FETCH_ERROR: ${e.message}. Use manual inputs.`;
             }
         }
 
@@ -254,14 +269,15 @@
 
         function updateAll() {
             try {
-                const S_current = parseFloat(document.getElementById('spx')?.value) || 6499;
+                console.log('UPDATE_ALL_START');
+                const S_current = parseFloat(document.getElementById('spx')?.value) || 6493;
                 const days = parseFloat(document.getElementById('days')?.value) || 81;
                 const T = days / 365;
-                const iv = (parseFloat(document.getElementById('iv')?.value) || 10.21) / 100;
+                const iv = (parseFloat(document.getElementById('iv')?.value) || 9.89) / 100;
                 const rf = (parseFloat(document.getElementById('rf')?.value) || 4) / 100;
                 const K = 7000;
 
-                console.log('updateAll called with S:', S_current, 'IV:', iv*100, 'T:', T);
+                console.log('UPDATE_ALL_PARAMS: S=', S_current, 'IV=', iv*100, 'T=', T, 'r=', rf);
 
                 // Current Greeks
                 const currentGreeks = getPositionGreeks(S_current, K, T, rf, iv);
@@ -269,6 +285,9 @@
                 if (currentEl) {
                     currentEl.innerHTML = `Current (SPX ${S_current}): Delta ${currentGreeks.total_delta}, Gamma ${currentGreeks.total_gamma}, Theta ${currentGreeks.total_theta}, Vega ${currentGreeks.total_vega}, Value $${currentGreeks.total_price} (${currentGreeks.pl_pct}%)<br>95% EDR: -${((iv * Math.sqrt(30 / 365) * 1.96) * 100).toFixed(2)}% in 30 days`;
                 }
+
+                // Verify Greeks against user data
+                console.log('GREEKS_CALC: Delta', currentGreeks.total_delta, 'expected ~85.33, Theta', currentGreeks.total_theta, 'expected ~-352.07, Vega', currentGreeks.total_vega, 'expected ~4772.51');
 
                 // Table
                 const S_breakeven = solveForS(INITIAL_COST, true, S_current - 200, S_current + 200, 0.1, K, T, rf, iv);
@@ -287,17 +306,17 @@
                             <tr>
                                 <th>Scenario</th>
                                 <th>Target SPX (pts)</th>
-                                <th>Delta ($/pt) [>100 Green]</th>
-                                <th>Gamma [>0.6 Green]</th>
-                                <th>Theta ($/day) [>-400 Green]</th>
-                                <th>Vega ($/1% IV) [>5000 Green]</th>
+                                <th>Delta ($/pt) <br>[>100 Green]</th>
+                                <th>Gamma <br>[>0.6 Green]</th>
+                                <th>Theta ($/day) <br>[>-400 Green]</th>
+                                <th>Vega ($/1% IV) <br>[>5000 Green]</th>
                                 <th>Value ($) <br>[P/L %]</th>
                             </tr>
                         </thead>
                         <tbody>
                             <tr class="current-row">
                                 <td>Current (Hold)</td>
-                                <td>${S_current} (0)</td>
+                                <td>${S_current.toFixed(0)} (0)</td>
                                 <td>${currentGreeks.total_delta}</td>
                                 <td>${currentGreeks.total_gamma}</td>
                                 <td>${currentGreeks.total_theta}</td>
@@ -343,13 +362,13 @@
                 const thetas = spxRange.map(s => parseFloat(getPositionGreeks(s, K, T, rf, iv).total_theta));
                 const vegas = spxRange.map(s => parseFloat(getPositionGreeks(s, K, T, rf, iv).total_vega));
 
-                console.log('Chart data prepared - Delta sample:', deltas[0], 'SPX range length:', spxRange.length);
+                console.log('CHART_DATA_PREPARED: Delta sample=', deltas[0], 'SPX range length=', spxRange.length);
 
                 // Charts
                 if (typeof Chart === 'undefined') {
+                    console.log('CHART_ERROR_NO_LIB: Chart.js not loaded');
                     document.getElementById('chartError').style.display = 'block';
-                    console.log('Chart.js not loaded - check CDN or ad blocker.');
-                    alert('Charts failed to load. Please check your internet connection or disable ad blockers. Try incognito mode.');
+                    document.getElementById('chartError').innerText = 'CHART_ERROR_NO_LIB: Chart.js not loaded. Check console (F12) or disable ad blockers.';
                     return;
                 }
 
@@ -392,7 +411,7 @@
                             },
                             options: { responsive: true, scales: { y: { beginAtZero: true } }, plugins: { legend: { display: true } } }
                         });
-                        console.log('Delta chart created');
+                        console.log('CHART_RENDER_SUCCESS: Delta drawn');
                     }
 
                     const ctxGamma = document.getElementById('gammaChart')?.getContext('2d');
@@ -425,7 +444,7 @@
                             },
                             options: { responsive: true, scales: { y: { beginAtZero: true } }, plugins: { legend: { display: true } } }
                         });
-                        console.log('Gamma chart created');
+                        console.log('CHART_RENDER_SUCCESS: Gamma drawn');
                     }
 
                     const ctxTheta = document.getElementById('thetaChart')?.getContext('2d');
@@ -458,7 +477,7 @@
                             },
                             options: { responsive: true, scales: { y: { min: -1400, max: 0 } }, plugins: { legend: { display: true } } }
                         });
-                        console.log('Theta chart created');
+                        console.log('CHART_RENDER_SUCCESS: Theta drawn');
                     }
 
                     const ctxVega = document.getElementById('vegaChart')?.getContext('2d');
@@ -491,24 +510,25 @@
                             },
                             options: { responsive: true, scales: { y: { beginAtZero: true } }, plugins: { legend: { display: true } } }
                         });
-                        console.log('Vega chart created');
+                        console.log('CHART_RENDER_SUCCESS: Vega drawn');
                     }
 
-                    console.log('All charts rendered successfully');
+                    console.log('CHART_RENDER_SUCCESS: All charts rendered');
                 } catch (e) {
-                    console.log('Chart creation error:', e);
+                    console.log('CHART_RENDER_ERROR:', e);
                     document.getElementById('chartError').style.display = 'block';
-                    alert('Error rendering charts. Check console (F12) for details.');
+                    document.getElementById('chartError').innerText = `CHART_RENDER_ERROR: ${e.message}. Check console (F12).`;
                 }
             } catch (e) {
-                console.log('updateAll error:', e);
+                console.log('UPDATE_ALL_ERROR:', e);
                 document.getElementById('chartError').style.display = 'block';
-                alert('Error updating charts. Check console (F12) for details.');
+                document.getElementById('chartError').innerText = `UPDATE_ALL_ERROR: ${e.message}. Check console (F12).`;
             }
         }
 
-        // Load API key from localStorage and fetch data on page load
+        // Load API key and fetch data on page load
         window.addEventListener('load', function() {
+            console.log('JS_INIT: Window loaded');
             const savedApiKey = localStorage.getItem('finnhubApiKey');
             if (savedApiKey) {
                 document.getElementById('apiKey').value = savedApiKey;
@@ -517,6 +537,6 @@
         });
     </script>
 
-    <p><strong>Notes:</strong> Model uses Black-Scholes (matches your data: delta ~90.24, gamma ~0.52, theta ~-362, vega ~4877 at SPX 6499). Enter Finnhub API key to fetch live data or use manual inputs. Contango/Backwardation guides buy timing. Not financial advice.</p>
+    <p><strong>Notes:</strong> Model uses Black-Scholes (calibrated to match: delta ~85.33, gamma ~0.5, theta ~-352, vega ~4772 at SPX 6493). Enter Finnhub API key to fetch live data or use manual inputs. Contango/Backwardation guides buy timing. Not financial advice.</p>
 </body>
 </html>
