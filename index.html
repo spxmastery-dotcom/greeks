@@ -4,12 +4,22 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SPX Nov 28 7000 Call: Greeks Analyzer (10 Contracts)</title>
-    <!-- Primary CDN for Chart.js -->
-    <script src="https://unpkg.com/chart.js@3.9.1/dist/chart.min.js"></script>
-    <!-- Fallback CDN if primary fails -->
+    <!-- Primary CDN for Chart.js (jsDelivr v4.4.4, stable) -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
     <script>
+        // Fallback if primary fails
         if (typeof Chart === 'undefined') {
-            document.write('<script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"><\/script>');
+            console.log('Primary CDN failed, loading fallback');
+            const fallbackScript = document.createElement('script');
+            fallbackScript.src = 'https://cdnjs.cloudflare.com/ajax/libs/chart.js/4.4.4/chart.min.js';
+            fallbackScript.onload = () => console.log('Fallback CDN loaded');
+            fallbackScript.onerror = () => {
+                console.log('Fallback CDN failed - charts disabled');
+                alert('Chart.js failed to load from multiple CDNs. Disable ad blockers or try incognito mode.');
+            };
+            document.head.appendChild(fallbackScript);
+        } else {
+            console.log('Chart.js loaded successfully');
         }
     </script>
     <style>
@@ -79,7 +89,7 @@
                     <th>Gamma [>0.6 Green]</th>
                     <th>Theta ($/day) [>-400 Green]</th>
                     <th>Vega ($/1% IV) [>5000 Green]</th>
-                    <th>Value ($) [P/L %]</th>
+                    <th>Value ($) <br> [P/L %]</th>
                 </tr>
             </thead>
             <tbody>
@@ -112,7 +122,7 @@
     </div>
 
     <script>
-        // Black-Scholes Functions (unchanged)
+        // Black-Scholes Functions
         function normPDF(x) {
             try {
                 return (1 / Math.sqrt(2 * Math.PI)) * Math.exp(-0.5 * x * x);
@@ -132,7 +142,7 @@
 
         function blackScholesGreeks(S, K, T, r, sigma) {
             try {
-                if (T <= 0 || sigma <= 0 || S <= 0 || K <= 0) return { price: 0, delta: 0, gamma: 0, vega: 0, theta: 0 };
+                if (T <= 0 || sigma <= 0 || S <= 0 || K <= 0) return { price: 0, delta_frac: 0, gamma_frac: 0, vega_per_1pct: 0, theta_per_share: 0 };
                 const d1 = (Math.log(S / K) + (r + 0.5 * sigma * sigma) * T) / (sigma * Math.sqrt(T));
                 const d2 = d1 - sigma * Math.sqrt(T);
                 const price = S * normCDF(d1) - K * Math.exp(-r * T) * normCDF(d2);
@@ -189,43 +199,49 @@
                     return;
                 }
 
+                console.log('Fetching live data with key:', apiKey.substring(0, 5) + '...'); // Log partial key
+
                 // Save API key to localStorage for session persistence
                 localStorage.setItem('finnhubApiKey', apiKey);
 
                 // Fetch SPX price
                 const spxResponse = await fetch(`https://finnhub.io/api/v1/quote?symbol=SPX&token=${apiKey}`);
-                if (!spxResponse.ok) throw new Error('SPX fetch failed');
+                if (!spxResponse.ok) throw new Error(`SPX fetch failed: ${spxResponse.status}`);
                 const spxData = await spxResponse.json();
                 const spxPrice = spxData.c || 6499;
                 document.getElementById('spx').value = spxPrice.toFixed(2);
+                console.log('SPX fetched:', spxPrice);
 
                 // Fetch VIX for IV approximation
                 const vixResponse = await fetch(`https://finnhub.io/api/v1/quote?symbol=VIX&token=${apiKey}`);
-                if (!vixResponse.ok) throw new Error('VIX fetch failed');
+                if (!vixResponse.ok) throw new Error(`VIX fetch failed: ${vixResponse.status}`);
                 const vixData = await vixResponse.json();
                 const vix = vixData.c || 15.21;
-                const iv = (vix / Math.sqrt(252)) * 100; // Approximate ATM IV
+                const iv = vix; // ATM IV ≈ VIX for SPX options
                 document.getElementById('iv').value = iv.toFixed(2);
+                console.log('VIX fetched, IV set to:', iv);
 
                 // Fetch VIX futures for contango/backwardation (using VIX spot as proxy for free tier)
                 const vix1MResponse = await fetch(`https://finnhub.io/api/v1/quote?symbol=VIX&token=${apiKey}`);
                 const vix1MData = await vix1MResponse.json();
                 const vix1M = vix1MData.c || 15.21;
 
-                // Approximate second-month VIX futures (VIX2M not directly available in free tier, use +1% offset)
+                // Approximate second-month VIX futures (VIX2M not directly available in free tier, use +1% offset for simulation)
                 const vix2M = vix1M * 1.01; // Simulated for free tier
                 const contangoStatus = vix1M > vix2M ? 
                     '<span class="backwardation">Backwardation: High volatility—short-term gain potential</span>' :
                     '<span class="contango">Contango: Buy favorable for long-term</span>';
                 document.getElementById('contangoStatus').innerHTML = contangoStatus;
+                console.log('Contango status:', contangoStatus);
 
                 // Simple EDR calculation (95% confidence, 30-day drawdown based on VIX)
-                const edr = (vix / Math.sqrt(252)) * Math.sqrt(30 / 365) * 1.96; // 95% CI
+                const edr = (vix / 100) * Math.sqrt(30 / 365) * 1.96; // 95% CI as decimal
                 const edrDisplay = `95% EDR: -${(edr * 100).toFixed(2)}% in 30 days`;
-                document.getElementById('currentGreeks').innerHTML += `<br>${edrDisplay}`;
+                console.log('EDR calculated:', edrDisplay);
 
                 // Auto-update table/charts with fetched data
                 updateAll();
+                alert('Live data fetched successfully! SPX: ' + spxPrice.toFixed(2) + ', IV: ' + iv.toFixed(2) + ', ' + contangoStatus + '. ' + edrDisplay);
             } catch (e) {
                 console.log('fetchLiveData error:', e);
                 document.getElementById('chartError').style.display = 'block';
@@ -245,6 +261,8 @@
                 const rf = (parseFloat(document.getElementById('rf')?.value) || 4) / 100;
                 const K = 7000;
 
+                console.log('updateAll called with S:', S_current, 'IV:', iv*100, 'T:', T);
+
                 // Current Greeks
                 const currentGreeks = getPositionGreeks(S_current, K, T, rf, iv);
                 const currentEl = document.getElementById('currentGreeks');
@@ -252,7 +270,7 @@
                     currentEl.innerHTML = `Current (SPX ${S_current}): Delta ${currentGreeks.total_delta}, Gamma ${currentGreeks.total_gamma}, Theta ${currentGreeks.total_theta}, Vega ${currentGreeks.total_vega}, Value $${currentGreeks.total_price} (${currentGreeks.pl_pct}%)<br>95% EDR: -${((iv * Math.sqrt(30 / 365) * 1.96) * 100).toFixed(2)}% in 30 days`;
                 }
 
-                // Table (unchanged from previous)
+                // Table
                 const S_breakeven = solveForS(INITIAL_COST, true, S_current - 200, S_current + 200, 0.1, K, T, rf, iv);
                 const greeks_be = getPositionGreeks(S_breakeven, K, T, rf, iv);
                 const target_20_price = INITIAL_COST * 1.2;
@@ -273,7 +291,7 @@
                                 <th>Gamma [>0.6 Green]</th>
                                 <th>Theta ($/day) [>-400 Green]</th>
                                 <th>Vega ($/1% IV) [>5000 Green]</th>
-                                <th>Value ($) [P/L %]</th>
+                                <th>Value ($) <br>[P/L %]</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -325,6 +343,8 @@
                 const thetas = spxRange.map(s => parseFloat(getPositionGreeks(s, K, T, rf, iv).total_theta));
                 const vegas = spxRange.map(s => parseFloat(getPositionGreeks(s, K, T, rf, iv).total_vega));
 
+                console.log('Chart data prepared - Delta sample:', deltas[0], 'SPX range length:', spxRange.length);
+
                 // Charts
                 if (typeof Chart === 'undefined') {
                     document.getElementById('chartError').style.display = 'block';
@@ -372,6 +392,7 @@
                             },
                             options: { responsive: true, scales: { y: { beginAtZero: true } }, plugins: { legend: { display: true } } }
                         });
+                        console.log('Delta chart created');
                     }
 
                     const ctxGamma = document.getElementById('gammaChart')?.getContext('2d');
@@ -404,6 +425,7 @@
                             },
                             options: { responsive: true, scales: { y: { beginAtZero: true } }, plugins: { legend: { display: true } } }
                         });
+                        console.log('Gamma chart created');
                     }
 
                     const ctxTheta = document.getElementById('thetaChart')?.getContext('2d');
@@ -436,6 +458,7 @@
                             },
                             options: { responsive: true, scales: { y: { min: -1400, max: 0 } }, plugins: { legend: { display: true } } }
                         });
+                        console.log('Theta chart created');
                     }
 
                     const ctxVega = document.getElementById('vegaChart')?.getContext('2d');
@@ -468,9 +491,10 @@
                             },
                             options: { responsive: true, scales: { y: { beginAtZero: true } }, plugins: { legend: { display: true } } }
                         });
+                        console.log('Vega chart created');
                     }
 
-                    console.log('Charts rendered successfully');
+                    console.log('All charts rendered successfully');
                 } catch (e) {
                     console.log('Chart creation error:', e);
                     document.getElementById('chartError').style.display = 'block';
