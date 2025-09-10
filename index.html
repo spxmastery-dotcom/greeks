@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SPX Mastery Long-Term Options Analyzer (Build 1, Version 18)</title>
+    <title>SPX Mastery Long-Term Options Analyzer (Build 1, Version 19)</title>
     <link rel="icon" href="https://storage.googleapis.com/msgsndr/DbcHU95N4uVVUJoOWctG/media/68c18e9983b98269408909db.png">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js" onload="console.log('CDN_SUCCESS_1: jsDelivr loaded')" onerror="console.log('CDN_ERROR_1: jsDelivr failed'); loadFallbackCDN(1)"></script>
     <script>
@@ -51,6 +51,7 @@
         .purple { color: purple; font-weight: bold; }
         .error { color: purple; text-align: center; }
         .disclaimer { background: #fff3cd; padding: 15px; margin: 20px auto; max-width: 800px; border: 1px solid #ffcc00; text-align: center; font-size: 12px; }
+        .finra-disclosure { background: #f8f9fa; padding: 20px; margin: 20px auto; max-width: 800px; border: 1px solid #ccc; font-size: 12px; text-align: left; }
         .api-section { margin: 10px 0; text-align: center; }
         .api-input { width: 200px; padding: 5px; }
         .contango { color: teal; font-weight: bold; }
@@ -67,9 +68,9 @@
     <p style="text-align: center; font-size: 12px;">Copyright © SPXMASTERY.com Russell Clark All Rights Reserved</p>
     <a href="#finra-disclosure" style="text-align: center; display: block; font-size: 12px;">View Full FINRA Options Disclosure</a>
     <div class="disclaimer">
-        <strong>Disclaimer:</strong> This tool is for educational purposes only and is not financial advice. Options trading involves significant risks, including the potential loss of your entire investment or more. Calculations are theoretical (Black-Scholes model) and may not reflect actual market conditions. The creator (spxmastery) is not liable for any financial losses or damages resulting from use of this tool. Consult a qualified financial advisor before trading options. See full disclaimer in the <a href="https://github.com/spxmastery/greeks">README</a>.
+        <strong>Disclaimer:</strong> This tool is for educational purposes only and is not financial advice. Options trading involves significant risks, including the potential loss of your entire investment or more. Calculations are theoretical (Black-Scholes model) and may not reflect actual market conditions. The creator (spxmastery) is not liable for any financial losses or damages resulting from use of this tool. Consult a qualified financial advisor before trading options.
     </div>
-    <h1>SPX Mastery Long-Term Options Analyzer (Build 1, Version 18)</h1>
+    <h1>SPX Mastery Long-Term Options Analyzer (Build 1, Version 19)</h1>
     <div class="input-section">
         <h2>Input Parameters (Click Update to Recalculate)</h2>
         <div class="api-section">
@@ -137,7 +138,7 @@
         <canvas id="gammaChart"></canvas>
         <canvas id="thetaChart"></canvas>
         <canvas id="vegaChart"></canvas>
-        <p class="legend"><span class="teal">Teal: Favorable</span> | <span class="orange">Orange: Caution</span> | <span class="purple">Purple: Risky</span></p>
+        <p class="legend"><span class="teal">Favorable</span> | <span class="orange">Caution</span> | <span class="purple">Risky</span></p>
     </div>
     <div id="tradingview_spx"></div>
     <div id="tradingview_vix"></div>
@@ -567,5 +568,23 @@
         });
     </script>
     <p><strong>Notes:</strong> Model uses Black-Scholes (calibrated to match: delta ~98.14, gamma ~0.54, theta ~-391, vega ~5118 at SPX 6541). Fetch chain for contract selection (suggest delta 0.4-0.6). EDR 95% range (override blank for auto). Contango uses front VIX future/spot. Colors color-blind friendly. For short-term: Use DTE forecast for buy/sell timing (e.g., sell on high theta). Not financial advice.</p>
+    <div id="finra-disclosure" class="finra-disclosure">
+        <h3>Full FINRA Options Disclosure</h3>
+        <p>Options trading entails significant risks and is not suitable for all investors. Pursuant to FINRA Rule 2360, investors must be provided with the following disclosures before engaging in options trading:</p>
+        <ul>
+            <li><strong>High Risk:</strong> Options involve a high degree of risk and may result in the loss of your entire investment or more, especially in uncovered or leveraged strategies. You may be required to deposit additional funds to cover losses.</li>
+            <li><strong>Complex Strategies:</strong> Certain complex options strategies, such as spreads, straddles, or uncovered writing, carry additional risks, including limited upside potential and significant downside exposure.</li>
+            <li><strong>Time Decay:</strong> Options are time-sensitive instruments. The value of options declines as expiration approaches, potentially resulting in a total loss of the premium paid.</li>
+            <li><strong>Market Volatility:</strong> Changes in market volatility can significantly affect options prices, particularly for strategies sensitive to implied volatility (e.g., high vega positions).</li>
+            <li><strong>Liquidity Risks:</strong> Some options may have low liquidity, leading to wide bid-ask spreads, difficulty executing trades, or inability to close positions at desired prices.</li>
+            <li><strong>Margin Requirements:</strong> Trading options on margin involves additional risks and may require meeting specific financial criteria. Margin calls may necessitate additional funds or liquidation of positions.</li>
+            <li><strong>Theoretical Models:</strong> This tool uses the Black-Scholes model for pricing and Greeks calculations, which relies on assumptions (e.g., constant volatility, no transaction costs) that may not reflect actual market conditions. Actual results may differ significantly.</li>
+            <li><strong>Regulatory Compliance:</strong> Options trading is subject to FINRA and SEC regulations. Investors must be approved for options trading by their brokerage, which may require a separate options agreement and risk acknowledgment.</li>
+            <li><strong>Tax Implications:</strong> Options trading may have complex tax consequences. Consult a tax professional to understand potential impacts.</li>
+            <li><strong>Consult Professionals:</strong> Before trading options, consult a qualified financial advisor or broker to ensure options are appropriate for your financial situation, objectives, and risk tolerance.</li>
+        </ul>
+        <p>For more information, refer to the FINRA Investor Education resources at <a href="https://www.finra.org/investors" target="_blank">www.finra.org/investors</a> or consult the Options Clearing Corporation (OCC) document, <em>Characteristics and Risks of Standardized Options</em>, available at <a href="https://www.theocc.com" target="_blank">www.theocc.com</a>.</p>
+        <p><strong>SPX Mastery Disclaimer:</strong> This tool is for educational purposes only. The creator (spxmastery) is not a registered investment advisor and does not provide financial advice. SPX Mastery is not liable for any financial losses or damages resulting from the use of this tool.</p>
+    </div>
 </body>
 </html>
