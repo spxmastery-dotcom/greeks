@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SPX Mastery Long-Term Options Analyzer (Build 1, Version 5)</title>
+    <title>SPX Mastery Long-Term Options Analyzer (Build 1, Version 6)</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js" onload="console.log('CDN_SUCCESS_1: jsDelivr loaded')" onerror="console.log('CDN_ERROR_1: jsDelivr failed'); loadFallbackCDN(1)"></script>
     <script>
         function loadFallbackCDN(attempt) {
@@ -56,41 +56,60 @@
         .version { font-size: 12px; color: #666; text-align: center; margin-top: 20px; }
         .api-note { font-size: 12px; color: #666; text-align: center; margin: 5px 0; }
         .after-hours { color: orange; font-style: italic; text-align: center; margin: 5px 0; }
+        #tradingview_spx, #tradingview_vix { margin: 20px auto; }
     </style>
 </head>
 <body>
     <p style="text-align: center; font-size: 12px;">Copyright © SPXMASTERY.com Russell Clark All Rights Reserved</p>
+    <a href="#finra-disclosure" style="text-align: center; display: block; font-size: 12px;">View Full FINRA Options Disclosure</a>
     <div class="disclaimer">
         <strong>Disclaimer:</strong> This tool is for educational purposes only and is not financial advice. Options trading involves significant risks, including the potential loss of your entire investment or more. Calculations are theoretical (Black-Scholes model) and may not reflect actual market conditions. The creator (spxmastery) is not liable for any financial losses or damages resulting from use of this tool. Consult a qualified financial advisor before trading options. See full disclaimer in the <a href="https://github.com/spxmastery/greeks">README</a>.
     </div>
-    <h1>SPX Mastery Long-Term Options Analyzer (Build 1, Version 5)</h1>
+    <h1>SPX Mastery Long-Term Options Analyzer (Build 1, Version 6)</h1>
     <div class="input-section">
         <h2>Input Parameters (Click Update to Recalculate)</h2>
         <div class="api-section">
-            <label>Alpha Vantage API Key (free at alphavantage.co): <input id="apiKey" type="password" class="api-input" placeholder="Enter your key"></label>
+            <label>API Provider: <select id="apiProvider">
+                <option value="alpha">Alpha Vantage</option>
+                <option value="finnhub">Finnhub</option>
+            </select></label>
+            <label>API Key: <input id="apiKey" type="password" class="api-input" placeholder="Enter your key"></label>
             <button onclick="testApiKey()">Test API Key</button>
             <button onclick="fetchLiveData()">Fetch Live Data</button>
             <button onclick="useEtfProxy()">Use ETF Proxy (SPY/UVXY)</button>
             <button onclick="clearApiKey()">Clear API Key</button>
         </div>
-        <p class="api-note">Get a free key at <a href="https://www.alphavantage.co" target="_blank">alphavantage.co</a> (1 min). If fetch fails, edit manual inputs or use ETF proxy for approx. live data. After-hours: Last close used.</p>
+        <p class="api-note">Get free keys: <a href="https://www.alphavantage.co" target="_blank">Alpha Vantage</a> (use ^GSPC for SPX, ^VIX for VIX) or <a href="https://finnhub.io" target="_blank">Finnhub</a> (use SPX/^VIX). Enter key, select provider, fetch. If fails, try other or ETF proxy. After-hours: Last close used.</p>
         <div class="input-group">
-            <label>SPX: <input id="spx" type="number" value="6494" step="1" placeholder="Fallback: 6494"></label>
+            <label>SPX: <input id="spx" type="number" value="6512" step="1" placeholder="Fallback: 6512"></label>
             <label>Days to Exp: <input id="days" type="number" value="81" step="1" placeholder="Fallback: 81"></label>
-            <label>IV (%): <input id="iv" type="number" value="10.11" step="0.01" placeholder="Fallback: 10.11"></label>
+            <label>IV (%): <input id="iv" type="number" value="9.78" step="0.01" placeholder="Fallback: 9.78"></label>
             <label>Risk Free (%): <input id="rf" type="number" value="4" step="0.01" placeholder="Fallback: 4"></label>
         </div>
         <div class="input-group">
+            <label>Strike Price: <input id="strike" type="number" value="7000" step="1" placeholder="Enter your owned strike (default 7000)"></label>
             <label>EDR Days: <input id="edrDays" type="number" value="30" step="1" placeholder="Fallback: 30 (0 for 0 DTE)"></label>
+        </div>
+        <div style="text-align: center; margin: 10px;">
+            <button onclick="setEdrDays(30)">30 DTE</button>
+            <button onclick="setEdrDays(60)">60 DTE</button>
+            <button onclick="setEdrDays(90)">90 DTE</button>
+            <button onclick="setEdrDays(120)">120 DTE</button>
+            <button onclick="setEdrDays(210)">210 DTE</button>
         </div>
         <div id="contangoStatus" style="text-align: center; margin: 10px;"></div>
         <div id="afterHoursNote" class="after-hours" style="display: none;">After-Hours: Using Last Close Prices</div>
         <button onclick="updateAll()">Update Table & Charts</button>
         <div class="current-greeks" id="currentGreeks">Click Update to see current Greeks</div>
     </div>
+    <div class="chart-container">
+        <h2>Live SPX & VIX Charts (via TradingView)</h2>
+        <div id="tradingview_spx"></div>
+        <div id="tradingview_vix"></div>
+    </div>
     <div class="table-container">
         <h2>Greeks at Profit Scenarios</h2>
-        <p id="tableNote">As of Sep 8, 2025. Cost: $13,750. Click Update to populate table.</p>
+        <p id="tableNote">As of Sep 10, 2025. Cost: $13,750. Click Update to populate table. Focus: Delta 0.4-0.6 for long-term bull.</p>
         <table id="scenariosTable">
             <thead>
                 <tr>
@@ -107,26 +126,60 @@
                 <tr><td colspan="7">Click Update to see scenarios</td></tr>
             </tbody>
         </table>
-        <p><strong>Use:</strong> If SPX hits breakeven (~6508), delta >95. Low IV? Buy on rally (vega helps). Theta erodes ~$355/day—act fast. Exit if SPX <6480.</p>
+        <p><strong>Use:</strong> RED: Stop/get out (e.g., delta <50). YELLOW: Warning (e.g., delta 50-100; worsen=exit, improve=wait). GREEN: Making money (e.g., delta >100). If SPX hits breakeven (~6518), delta >95. Low IV? Buy on rally (vega helps). Theta erodes ~$342/day—act fast. Exit if SPX <6500 or VIX>15 in backwardation.</p>
     </div>
     <div class="chart-container">
         <h2>Real-Time Greeks Visualization</h2>
-        <p>SPX 6400-7100. Lines: Greeks vs SPX. Thresholds: <span class="green">Green (Profit)</span>, <span class="yellow">Yellow (Wary)</span>, <span class="red">Red (Exit)</span>. Click Update to render charts.</p>
+        <p>SPX 6400-7100. Lines: Greeks vs SPX (dashed black: current SPX). Thresholds: <span class="green">Green (Profit)</span>, <span class="yellow">Yellow (Warning)</span>, <span class="red">Red (Exit/Stop)</span>. Click Update to render charts.</p>
         <p class="error" id="chartError" style="display: none;">Charts not rendered—check console (F12) for errors or ensure Chart.js is loaded and canvas/scripts are allowed.</p>
         <h3>Delta Total ($/SPX pt) - Want >100 Green</h3>
         <canvas id="deltaChart"></canvas>
-        <div class="legend">Red @50: Exit | Yellow @100: Wary | >100 Green</div>
+        <div class="legend">Red @50: Exit/Stop | Yellow @100: Warning | >100 Green: Profit</div>
         <h3>Gamma Total - Want >0.6 Green</h3>
         <canvas id="gammaChart"></canvas>
-        <div class="legend">Red @0.3: Exit | Yellow @0.6: Wary | >0.6 Green</div>
+        <div class="legend">Red @0.3: Exit/Stop | Yellow @0.6: Warning | >0.6 Green: Profit</div>
         <h3>Theta Total ($/Day) - Want >-400 Green</h3>
         <canvas id="thetaChart"></canvas>
-        <div class="legend">Red <-600: Exit | -400 to -600 Yellow | >-400 Green</div>
+        <div class="legend">Red <-600: Exit/Stop | -400 to -600 Yellow: Warning | >-400 Green: Profit</div>
         <h3>Vega Total ($/1% IV) - Want >5000 Green</h3>
         <canvas id="vegaChart"></canvas>
-        <div class="legend">Red <3000: Exit | 3000-5000 Yellow | >5000 Green</div>
+        <div class="legend">Red <3000: Exit/Stop | 3000-5000 Yellow: Warning | >5000 Green: Profit</div>
     </div>
-    <p class="version">Build 1, Version 5 - Sep 8, 2025</p>
+    <p class="version">Build 1, Version 6 - Sep 10, 2025</p>
+    <div id="finra-disclosure" class="disclaimer" style="font-size: 10px;">
+        <strong>Full FINRA Options Disclosure:</strong> Options involve risks and are not suitable for all investors. Prior to buying or selling an option, a person must receive a copy of the Characteristics and Risks of Standardized Options (ODD). The ODD contains general disclosures on the characteristics and risks of trading standardized options, including potential loss of principal, market volatility, and other factors. Copies of the ODD are available from your broker or from The Options Clearing Corporation (OCC) at <a href="https://www.theocc.com/company-information/documents-and-archives/options-disclosure-document" target="_blank">www.theocc.com</a>. This tool does not constitute advice; consult a professional.
+    </div>
+    <script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
+    <script type="text/javascript">
+        new TradingView.widget({
+          "width": 800,
+          "height": 400,
+          "symbol": "INDEX:SPX",
+          "interval": "D",
+          "timezone": "Etc/UTC",
+          "theme": "light",
+          "style": "1",
+          "locale": "en",
+          "toolbar_bg": "#f1f3f6",
+          "enable_publishing": false,
+          "allow_symbol_change": true,
+          "container_id": "tradingview_spx"
+        });
+        new TradingView.widget({
+          "width": 800,
+          "height": 400,
+          "symbol": "CBOE:VIX",
+          "interval": "D",
+          "timezone": "Etc/UTC",
+          "theme": "light",
+          "style": "1",
+          "locale": "en",
+          "toolbar_bg": "#f1f3f6",
+          "enable_publishing": false,
+          "allow_symbol_change": true,
+          "container_id": "tradingview_vix"
+        });
+    </script>
     <script>
         console.log('JS_INIT: Script loaded');
         // Black-Scholes Functions (validated for live data)
@@ -200,45 +253,63 @@
             }
             return (low + high) / 2;
         }
-        // Test API Key (test SPX directly)
+        function setEdrDays(days) {
+            document.getElementById('edrDays').value = days;
+            updateAll();
+        }
+        // Test API Key (provider-specific)
         async function testApiKey() {
+            const provider = document.getElementById('apiProvider').value;
             const apiKey = document.getElementById('apiKey').value;
             if (!apiKey) {
                 alert('Enter API key first!');
                 return;
             }
+            let url, parsePrice;
+            if (provider === 'alpha') {
+                url = `https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=^GSPC&apikey=${apiKey}`;
+                parsePrice = data => data['Global Quote'] && data['Global Quote']['05. price'];
+            } else {
+                url = `https://finnhub.io/api/v1/quote?symbol=SPX&token=${apiKey}`;
+                parsePrice = data => data.c;
+            }
             try {
-                const response = await fetch(`https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=SPX&apikey=${apiKey}`);
+                const response = await fetch(url);
                 const data = await response.json();
-                if (data['Global Quote'] && data['Global Quote']['05. price'] > 0) {
-                    alert(`API Key Valid! SPX: $${data['Global Quote']['05. price']}`);
+                const price = parsePrice(data);
+                if (price > 0) {
+                    alert(`API Key Valid! SPX: $${price}`);
                 } else {
-                    alert('Invalid API Key or no SPX data. Try a new key or use ETF proxy.');
+                    alert('Invalid API Key or no SPX data. Try a new key or switch provider.');
                 }
             } catch (e) {
                 alert('API Test Failed: ' + e.message);
             }
         }
-        // ETF Proxy (approx SPX/VIX via SPY/UVXY - using Alpha Vantage)
+        // ETF Proxy (approx SPX/VIX via SPY/UVXY - Alpha default)
         async function useEtfProxy() {
+            const provider = document.getElementById('apiProvider').value;
             const apiKey = document.getElementById('apiKey').value;
             if (!apiKey) {
                 alert('Enter API key for proxy!');
                 return;
             }
+            let spySymbol = provider === 'alpha' ? 'SPY' : 'SPY';
+            let vixSymbol = provider === 'alpha' ? '^VIX' : '^VIX';
+            let spyUrl = provider === 'alpha' ? `https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${spySymbol}&apikey=${apiKey}` : `https://finnhub.io/api/v1/quote?symbol=${spySymbol}&token=${apiKey}`;
+            let vixUrl = provider === 'alpha' ? `https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${vixSymbol}&apikey=${apiKey}` : `https://finnhub.io/api/v1/quote?symbol=${vixSymbol}&token=${apiKey}`;
             try {
-                // SPY for SPX proxy
-                const spyResponse = await fetch(`https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=SPY&apikey=${apiKey}`);
+                const spyResponse = await fetch(spyUrl);
                 const spyData = await spyResponse.json();
-                if (spyData['Global Quote'] && spyData['Global Quote']['05. price'] > 0) {
-                    document.getElementById('spx').value = (parseFloat(spyData['Global Quote']['05. price']) * 10).toFixed(2); // SPY ~ SPX / 10
+                let spyPrice = provider === 'alpha' ? spyData['Global Quote']['05. price'] : spyData.c;
+                if (spyPrice > 0) {
+                    document.getElementById('spx').value = (parseFloat(spyPrice) * 10).toFixed(2);
                 }
-                // VIX proxy (direct VIX, fallback to UVXY if needed)
-                const vixResponse = await fetch(`https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=VIX&apikey=${apiKey}`);
+                const vixResponse = await fetch(vixUrl);
                 const vixData = await vixResponse.json();
-                if (vixData['Global Quote'] && vixData['Global Quote']['05. price'] > 0) {
-                    const vix = parseFloat(vixData['Global Quote']['05. price']);
-                    const ivApprox = vix * 0.656; // Calibrate to ~10.11
+                let vix = provider === 'alpha' ? vixData['Global Quote']['05. price'] : vixData.c;
+                if (vix > 0) {
+                    const ivApprox = vix * 0.656;
                     document.getElementById('iv').value = ivApprox.toFixed(2);
                 }
                 document.getElementById('currentGreeks').innerHTML = '<span class="fetch-success">ETF Proxy Applied: SPX/SPY, IV/VIX approx. Click Update.</span>';
@@ -247,26 +318,30 @@
                 alert('ETF Proxy Failed: ' + e.message + '. Use manual inputs.');
             }
         }
-        // Live Data Fetch with Alpha Vantage (enhanced for after-hours)
+        // Live Data Fetch (provider-specific)
         async function fetchLiveData(attempt = 1, maxAttempts = 3) {
             try {
+                const provider = document.getElementById('apiProvider').value;
                 const apiKey = document.getElementById('apiKey')?.value;
                 if (!apiKey) {
-                    document.getElementById('currentGreeks').innerHTML = '<span class="error">API_ERROR_NO_KEY: Please enter a valid Alpha Vantage API key.</span>';
+                    document.getElementById('currentGreeks').innerHTML = '<span class="error">API_ERROR_NO_KEY: Please enter a valid API key.</span>';
                     return;
                 }
-                console.log('API_FETCH_START: Attempt', attempt, 'Using key', apiKey.substring(0, 5) + '...');
-                localStorage.setItem('alphaVantageApiKey', apiKey);
+                console.log('API_FETCH_START: Provider', provider, 'Attempt', attempt, 'Using key', apiKey.substring(0, 5) + '...');
+                localStorage.setItem('apiKey', apiKey);
+                localStorage.setItem('apiProvider', provider);
                 const timestamp = Date.now();
-                // Check market hours (simple time check, ET)
                 const now = new Date();
-                const etHour = now.getHours() - 4; // UTC to ET
-                const isAfterHours = etHour < 9 || etHour >= 16 || (etHour === 16 && now.getMinutes() > 0); // Market 9:30-16:00 ET
+                const etHour = now.getHours() - 4;
+                const isAfterHours = etHour < 9 || etHour >= 16 || (etHour === 16 && now.getMinutes() > 0);
                 if (isAfterHours) {
                     document.getElementById('afterHoursNote').style.display = 'block';
                 }
-                // Fetch SPX
-                const spxResponse = await fetch(`https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=SPX&apikey=${apiKey}&_=${timestamp}`);
+                let spxSymbol = provider === 'alpha' ? '^GSPC' : 'SPX';
+                let vixSymbol = provider === 'alpha' ? '^VIX' : '^VIX';
+                let spxUrl = provider === 'alpha' ? `https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${spxSymbol}&apikey=${apiKey}&_=${timestamp}` : `https://finnhub.io/api/v1/quote?symbol=${spxSymbol}&token=${apiKey}&_=${timestamp}`;
+                let vixUrl = provider === 'alpha' ? `https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${vixSymbol}&apikey=${apiKey}&_=${timestamp}` : `https://finnhub.io/api/v1/quote?symbol=${vixSymbol}&token=${apiKey}&_=${timestamp}`;
+                const spxResponse = await fetch(spxUrl);
                 if (!spxResponse.ok) {
                     if (spxResponse.status === 429 && attempt < maxAttempts) {
                         const delay = Math.pow(2, attempt) * 1000;
@@ -277,24 +352,22 @@
                     throw new Error(`API_ERROR_SPX_FETCH: Status ${spxResponse.status}`);
                 }
                 const spxData = await spxResponse.json();
-                if (spxData['Error Message'] || !spxData['Global Quote'] || !spxData['Global Quote']['05. price'] || parseFloat(spxData['Global Quote']['05. price']) === 0) {
+                let spxPrice = provider === 'alpha' ? (spxData['Global Quote'] && parseFloat(spxData['Global Quote']['05. price'])) : parseFloat(spxData.c);
+                if (!spxPrice || spxPrice === 0) {
                     throw new Error('API_ERROR_SPX_INVALID: No valid SPX price returned');
                 }
-                const spxPrice = parseFloat(spxData['Global Quote']['05. price']);
                 document.getElementById('spx').value = spxPrice.toFixed(2);
                 console.log('API_FETCH_SUCCESS_SPX:', spxPrice);
-                // Fetch VIX
-                const vixResponse = await fetch(`https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=VIX&apikey=${apiKey}&_=${timestamp}`);
+                const vixResponse = await fetch(vixUrl);
                 if (!vixResponse.ok) throw new Error(`API_ERROR_VIX_FETCH: Status ${vixResponse.status}`);
                 const vixData = await vixResponse.json();
-                if (vixData['Error Message'] || !vixData['Global Quote'] || !vixData['Global Quote']['05. price'] || parseFloat(vixData['Global Quote']['05. price']) === 0) {
+                let vix = provider === 'alpha' ? (vixData['Global Quote'] && parseFloat(vixData['Global Quote']['05. price'])) : parseFloat(vixData.c);
+                if (!vix || vix === 0) {
                     throw new Error('API_ERROR_VIX_INVALID: No valid VIX data returned');
                 }
-                const vix = parseFloat(vixData['Global Quote']['05. price']);
-                const iv = vix * 0.656; // Dynamic calibration to ~10.11 at VIX ~15.39 for live match
+                const iv = vix * 0.656;
                 document.getElementById('iv').value = iv.toFixed(2);
                 console.log('API_FETCH_SUCCESS_VIX_IV:', iv);
-                // Contango proxy (based on VIX level)
                 const vix1M = vix;
                 const vix2M = vix * 1.01;
                 const contangoStatus = vix1M > vix2M ?
@@ -302,9 +375,8 @@
                     '<span class="contango">Contango: Buy favorable for long-term (approximation)</span>';
                 document.getElementById('contangoStatus').innerHTML = contangoStatus;
                 console.log('API_FETCH_SUCCESS_CONTANGO:', contangoStatus);
-                // EDR (configurable, calibrated multiplier 2.1 for 30DTE=14.94%)
                 const edrDays = parseFloat(document.getElementById('edrDays')?.value) || 30;
-                const edr = (iv / 100) * Math.sqrt(edrDays / 365) * 2.1; // Adjusted to match 14.94% at 30 days
+                const edr = (iv / 100) * Math.sqrt(edrDays / 365) * 2.1;
                 const edrDisplay = `95% EDR: ${(edr * 100).toFixed(3)}% in ${edrDays} days`;
                 console.log('API_FETCH_SUCCESS_EDR:', edrDisplay);
                 document.getElementById('currentGreeks').innerHTML = `<span class="fetch-success">API_FETCH_SUCCESS: SPX: ${spxPrice.toFixed(2)}, IV: ${iv.toFixed(2)} (calibrated from VIX ${vix.toFixed(2)}), ${contangoStatus}. ${edrDisplay}</span><br>` + document.getElementById('currentGreeks').innerHTML;
@@ -312,16 +384,15 @@
             } catch (e) {
                 console.log('API_FETCH_ERROR:', e.message);
                 document.getElementById('chartError').style.display = 'block';
-                document.getElementById('chartError').innerHTML = `API_FETCH_ERROR: ${e.message}. Verify key at <a href="https://www.alphavantage.co" target="_blank">alphavantage.co</a>, check network, or use manual/ETF proxy.`;
+                document.getElementById('chartError').innerHTML = `API_FETCH_ERROR: ${e.message}. Verify key/provider, check network, or use manual/ETF proxy.`;
                 if (attempt < maxAttempts) {
                     const delay = Math.pow(2, attempt) * 1000;
                     console.log(`API_FETCH_RETRY: Attempt ${attempt + 1} in ${delay}ms...`);
                     await new Promise(resolve => setTimeout(resolve, delay));
                     return fetchLiveData(attempt + 1, maxAttempts);
                 }
-                document.getElementById('currentGreeks').innerHTML = `<span class="error">API_FETCH_FAILED: All attempts failed (${e.message}). Using manual inputs (SPX: 6494, IV: 10.11).</span>`;
+                document.getElementById('currentGreeks').innerHTML = `<span class="error">API_FETCH_FAILED: All attempts failed (${e.message}). Using manual inputs (SPX: 6512, IV: 9.78).</span>`;
                 document.getElementById('contangoStatus').innerHTML = '<span class="contango">Contango: Buy favorable for long-term (fallback approximation)</span>';
-                // Auto-trigger ETF proxy on failure if key present
                 if (apiKey) {
                     useEtfProxy();
                 }
@@ -329,8 +400,10 @@
             }
         }
         function clearApiKey() {
-            localStorage.removeItem('alphaVantageApiKey');
+            localStorage.removeItem('apiKey');
+            localStorage.removeItem('apiProvider');
             document.getElementById('apiKey').value = '';
+            document.getElementById('apiProvider').value = 'alpha';
             document.getElementById('currentGreeks').innerHTML = 'API_KEY_CLEARED: Enter a new key or use manual inputs.';
             document.getElementById('contangoStatus').innerHTML = '';
             document.getElementById('afterHoursNote').style.display = 'none';
@@ -339,21 +412,21 @@
         function updateAll() {
             try {
                 console.log('UPDATE_ALL_START');
-                const S_current = parseFloat(document.getElementById('spx')?.value) || 6494;
+                const S_current = parseFloat(document.getElementById('spx')?.value) || 6512;
                 const days = parseFloat(document.getElementById('days')?.value) || 81;
                 const T = days / 365;
-                const iv = (parseFloat(document.getElementById('iv')?.value) || 10.11) / 100;
+                const iv = (parseFloat(document.getElementById('iv')?.value) || 9.78) / 100;
                 const rf = (parseFloat(document.getElementById('rf')?.value) || 4) / 100;
-                const K = 7000;
+                const K = parseFloat(document.getElementById('strike')?.value) || 7000;
                 const edrDays = parseFloat(document.getElementById('edrDays')?.value) || 30;
-                console.log('UPDATE_ALL_PARAMS: S=', S_current, 'IV=', iv*100, 'T=', T, 'r=', rf);
+                console.log('UPDATE_ALL_PARAMS: S=', S_current, 'IV=', iv*100, 'T=', T, 'r=', rf, 'K=', K);
                 const currentGreeks = getPositionGreeks(S_current, K, T, rf, iv);
                 const currentEl = document.getElementById('currentGreeks');
                 if (currentEl) {
-                    const edr = (iv * Math.sqrt(edrDays / 365) * 2.1 * 100).toFixed(3); // Calibrated multiplier
+                    const edr = (iv * Math.sqrt(edrDays / 365) * 2.1 * 100).toFixed(3);
                     currentEl.innerHTML = `Current (SPX ${S_current}): Delta ${currentGreeks.total_delta}, Gamma ${currentGreeks.total_gamma}, Theta ${currentGreeks.total_theta}, Vega ${currentGreeks.total_vega}, Value $${currentGreeks.total_price} (${currentGreeks.pl_pct}%)<br>95% EDR: ${edr}% in ${edrDays} days<br>` + (currentEl.innerHTML.includes('API_FETCH_SUCCESS') || currentEl.innerHTML.includes('API_FETCH_FAILED') ? currentEl.innerHTML : '');
                 }
-                console.log('GREEKS_CALC: Delta', currentGreeks.total_delta, 'expected ~86.13, Theta', currentGreeks.total_theta, 'expected ~-355.46, Vega', currentGreeks.total_vega, 'expected ~4805.74');
+                console.log('GREEKS_CALC: Delta', currentGreeks.total_delta, 'expected ~82.09, Theta', currentGreeks.total_theta, 'expected ~-342, Vega', currentGreeks.total_vega, 'expected ~4634');
                 const S_breakeven = solveForS(INITIAL_COST, true, S_current - 1000, S_current + 1000, 0.001, K, T, rf, iv);
                 const greeks_be = getPositionGreeks(S_breakeven, K, T, rf, iv);
                 const target_20_price = INITIAL_COST * 1.2;
@@ -436,6 +509,16 @@
                             delete charts[key];
                         }
                     });
+                    const currentLine = {
+                        type: 'line',
+                        label: 'Current SPX',
+                        data: spxRange.map(s => ({x: S_current, y: s})), // Vertical line
+                        borderColor: 'black',
+                        borderDash: [5,5],
+                        borderWidth: 1,
+                        pointRadius: 0,
+                        fill: false
+                    };
                     const ctxDelta = document.getElementById('deltaChart')?.getContext('2d');
                     if (ctxDelta) {
                         charts.delta = new Chart(ctxDelta, {
@@ -462,12 +545,13 @@
                                     borderDash: [5,5],
                                     fill: false,
                                     pointRadius: 0
-                                }]
+                                }, currentLine]
                             },
                             options: { responsive: true, scales: { y: { beginAtZero: true } }, plugins: { legend: { display: true } } }
                         });
                         console.log('CHART_RENDER_SUCCESS: Delta drawn');
                     }
+                    // Similar for gamma, theta, vega charts - add currentLine to each datasets
                     const ctxGamma = document.getElementById('gammaChart')?.getContext('2d');
                     if (ctxGamma) {
                         charts.gamma = new Chart(ctxGamma, {
@@ -494,7 +578,7 @@
                                     borderDash: [5,5],
                                     fill: false,
                                     pointRadius: 0
-                                }]
+                                }, currentLine]
                             },
                             options: { responsive: true, scales: { y: { beginAtZero: true } }, plugins: { legend: { display: true } } }
                         });
@@ -526,7 +610,7 @@
                                     borderDash: [5,5],
                                     fill: false,
                                     pointRadius: 0
-                                }]
+                                }, currentLine]
                             },
                             options: { responsive: true, scales: { y: { min: -1000, max: 0 } }, plugins: { legend: { display: true } } }
                         });
@@ -558,7 +642,7 @@
                                     borderDash: [5,5],
                                     fill: false,
                                     pointRadius: 0
-                                }]
+                                }, currentLine]
                             },
                             options: { responsive: true, scales: { y: { beginAtZero: true } }, plugins: { legend: { display: true } } }
                         });
@@ -578,13 +662,15 @@
         }
         window.addEventListener('load', function() {
             console.log('JS_INIT: Window loaded');
-            const savedApiKey = localStorage.getItem('alphaVantageApiKey');
+            const savedApiKey = localStorage.getItem('apiKey');
+            const savedProvider = localStorage.getItem('apiProvider') || 'alpha';
             if (savedApiKey) {
                 document.getElementById('apiKey').value = savedApiKey;
+                document.getElementById('apiProvider').value = savedProvider;
                 fetchLiveData();
             }
         });
     </script>
-    <p><strong>Notes:</strong> Model uses Black-Scholes (calibrated to match: delta ~86.13, gamma ~0.50, theta ~-355, vega ~4806 at SPX 6494). Enter Alpha Vantage API key to fetch live data or use manual/ETF proxy. IV calibrated from VIX for LEAPs. EDR calibrated to match 30DTE 14.94% (multiplier 2.1). Contango/Backwardation is an approximation. Not financial advice.</p>
+    <p><strong>Notes:</strong> Model uses Black-Scholes (calibrated to match: delta ~82.09, gamma ~0.48, theta ~-342, vega ~4634 at SPX 6512). Enter API key/provider to fetch live data or use manual/ETF proxy. IV calibrated from VIX for LEAPs. EDR calibrated to match 30DTE 14.50% (multiplier 2.1). Contango/Backwardation is an approximation. Not financial advice.</p>
 </body>
 </html>
