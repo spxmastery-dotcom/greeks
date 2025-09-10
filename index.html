@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SPX Mastery Long-Term Options Analyzer (Build 1, Version 13)</title>
+    <title>SPX Mastery Long-Term Options Analyzer (Build 1, Version 14)</title>
     <link rel="icon" href="https://storage.googleapis.com/msgsndr/DbcHU95N4uVVUJoOWctG/media/68c18e9983b98269408909db.png">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js" onload="console.log('CDN_SUCCESS_1: jsDelivr loaded')" onerror="console.log('CDN_ERROR_1: jsDelivr failed'); loadFallbackCDN(1)"></script>
     <script>
@@ -66,7 +66,7 @@
     <div class="disclaimer">
         <strong>Disclaimer:</strong> This tool is for educational purposes only and is not financial advice. Options trading involves significant risks, including the potential loss of your entire investment or more. Calculations are theoretical (Black-Scholes model) and may not reflect actual market conditions. The creator (spxmastery) is not liable for any financial losses or damages resulting from use of this tool. Consult a qualified financial advisor before trading options. See full disclaimer in the <a href="https://github.com/spxmastery/greeks">README</a>.
     </div>
-    <h1>SPX Mastery Long-Term Options Analyzer (Build 1, Version 13)</h1>
+    <h1>SPX Mastery Long-Term Options Analyzer (Build 1, Version 14)</h1>
     <div class="input-section">
         <h2>Input Parameters (Click Update to Recalculate)</h2>
         <div class="api-section">
@@ -86,15 +86,16 @@
         <div class="input-group">
             <label>Contracts: <input id="contracts" type="number" value="9" step="1" placeholder="Number of contracts (default 9)"></label>
             <label>Initial Cost ($): <input id="initialCost" type="number" value="11350.20" step="0.01" placeholder="Total initial cost (default 11350.20)"></label>
-            <label>SPX: <input id="spx" type="number" value="6543" step="1" placeholder="Fallback: 6543"></label>
+            <label>SPX: <input id="spx" type="number" value="6541" step="1" placeholder="Fallback: 6541"></label>
             <label>Days to Exp: <input id="days" type="number" value="79" step="1" placeholder="Fallback: 79 (enter actual)"></label>
             <label>IV Source: <select id="ivSource">
                 <option value="manual">Manual</option>
                 <option value="live">Live (Options tier)</option>
             </select></label>
-            <label>IV (%): <input id="iv" type="number" value="11.5" step="0.01" placeholder="Fallback: 11.5"></label>
+            <label>IV (%): <input id="iv" type="number" value="10.5" step="0.01" placeholder="Fallback: 10.5"></label>
             <label>Risk Free (%): <input id="rf" type="number" value="4" step="0.01" placeholder="Fallback: 4"></label>
             <label>Div Yield (%): <input id="divYield" type="number" value="1.3" step="0.01" placeholder="SPX div yield (default 1.3)"></label>
+            <label>Mark Price ($): <input id="markPrice" type="number" value="16.15" step="0.01" placeholder="TOS mark (default 16.15)"></label>
         </div>
         <div class="input-group">
             <label>Type: <select id="optionType">
@@ -103,7 +104,7 @@
             </select></label>
             <label>Strike Price: <input id="strike" type="number" value="7000" step="1" placeholder="Enter your owned strike (default 7000)"></label>
             <label>EDR Days: <input id="edrDays" type="number" value="30" step="1" placeholder="Fallback: 30 (0 for 0 DTE)"></label>
-            <label>Custom EDR (%): <input id="customEdr" type="number" value="" step="0.001" placeholder="Enter manual EDR (overrides calc)"></label>
+            <label>Custom EDR (%): <input id="customEdr" type="number" value="" step="0.001" placeholder="Override EDR (leave blank to calc)"></label>
         </div>
         <div style="text-align: center; margin: 10px;">
             <button onclick="setEdrDays(30)">30 DTE</button>
@@ -124,7 +125,7 @@
     </div>
     <div class="table-container">
         <h2>Greeks at Profit Scenarios</h2>
-        <p id="tableNote">As of Sep 10, 2025. Cost: $11,350.20. Click Update to populate table. Focus: Delta 0.4-0.6 for long-term bull. Theta erodes ~$393/day.</p>
+        <p id="tableNote">As of Sep 10, 2025. Cost: $11,350.20. Click Update to populate table. Focus: Delta 0.4-0.6 for long-term bull. Theta erodes ~$391/day.</p>
         <table id="scenariosTable">
             <thead>
                 <tr>
@@ -141,7 +142,7 @@
                 <tr><td colspan="7">Click Update to see scenarios</td></tr>
             </tbody>
         </table>
-        <p><strong>Use:</strong> RED: Stop/get out (e.g., delta <50). YELLOW: Warning (e.g., delta 50-100; worsen=exit, improve=wait). GREEN: Making money (e.g., delta >100). If SPX hits breakeven (~7013), delta >95. Low IV? Buy on rally (vega helps). Theta erodes ~$393/day—act fast. Exit if SPX <6500 or VIX>15 in backwardation.</p>
+        <p><strong>Use:</strong> RED: Stop/get out (e.g., delta <50). YELLOW: Warning (e.g., delta 50-100; worsen=exit, improve=wait). GREEN: Making money (e.g., delta >100). If SPX hits breakeven (~7013), delta >95. Low IV? Buy on rally (vega helps). Theta erodes ~$391/day—act fast. Exit if SPX <6500 or VIX>15 in backwardation.</p>
     </div>
     <div class="chart-container">
         <h2>Real-Time Greeks Visualization</h2>
@@ -160,7 +161,7 @@
         <canvas id="vegaChart"></canvas>
         <div class="legend">Red <3000: Exit/Stop | 3000-5000 Yellow: Warning | >5000 Green: Profit</div>
     </div>
-    <p class="version">Build 1, Version 13 - Sep 10, 2025</p>
+    <p class="version">Build 1, Version 14 - Sep 10, 2025</p>
     <div id="finra-disclosure" class="disclaimer" style="font-size: 10px;">
         <strong>Full FINRA Options Disclosure:</strong> Options involve risks and are not suitable for all investors. Prior to buying or selling an option, a person must receive a copy of the Characteristics and Risks of Standardized Options (ODD). The ODD contains general disclosures on the characteristics and risks of trading standardized options, including potential loss of principal, market volatility, and other factors. Copies of the ODD are available from your broker or from The Options Clearing Corporation (OCC) at <a href="https://www.theocc.com/company-information/documents-and-archives/options-disclosure-document" target="_blank">www.theocc.com</a>. This tool does not constitute advice; consult a professional.
     </div>
@@ -199,7 +200,6 @@
     </script>
     <script>
         console.log('JS_INIT: Script loaded');
-        // Black-Scholes Functions (validated for live data)
         function normPDF(x) {
             try {
                 return (1 / Math.sqrt(2 * Math.PI)) * Math.exp(-0.5 * x * x);
@@ -229,7 +229,7 @@
                     price = S * Math.exp(-q * T) * normCDF(d1) - K * Math.exp(-r * T) * normCDF(d2);
                     delta_frac = Math.exp(-q * T) * normCDF(d1);
                     theta_per_share = - Math.exp(-q * T) * (S * normPDF(d1) * sigma) / (2 * Math.sqrt(T)) - r * K * Math.exp(-r * T) * normCDF(d2) + q * S * Math.exp(-q * T) * normCDF(d1);
-                } else { // put
+                } else {
                     price = K * Math.exp(-r * T) * normCDF(-d2) - S * Math.exp(-q * T) * normCDF(-d1);
                     delta_frac = -Math.exp(-q * T) * normCDF(-d1);
                     theta_per_share = - Math.exp(-q * T) * (S * normPDF(d1) * sigma) / (2 * Math.sqrt(T)) + r * K * Math.exp(-r * T) * normCDF(-d2) - q * S * Math.exp(-q * T) * normCDF(-d1);
@@ -237,7 +237,7 @@
                 const gamma_frac = Math.exp(-q * T) * normPDF(d1) / (S * sigma * Math.sqrt(T)) || 0;
                 const vega_per_unit_sigma = S * Math.exp(-q * T) * normPDF(d1) * Math.sqrt(T);
                 const vega_per_1pct = vega_per_unit_sigma * 0.01;
-                theta_per_share /= 365; // Calendar days
+                theta_per_share /= 365;
                 console.log('GREEKS_CALC_END: price=', price, 'delta_frac=', delta_frac, 'theta_per_share=', theta_per_share);
                 return { price, delta_frac, gamma_frac, vega_per_1pct, theta_per_share };
             } catch (e) {
@@ -249,11 +249,12 @@
             const contracts = parseFloat(document.getElementById('contracts')?.value) || 9;
             const scale = contracts * 100;
             const initialCost = parseFloat(document.getElementById('initialCost')?.value) || 11350.20;
+            const markPrice = parseFloat(document.getElementById('markPrice')?.value) || 16.15;
             const type = document.getElementById('optionType').value;
             const q = parseFloat(document.getElementById('divYield')?.value) / 100 || 0.013;
             console.log('POSITION_GREEKS_START: scale=', scale, 'sigma=', sigma, 'type=', type, 'q=', q);
             const g = blackScholesGreeks(S, K, T, r, sigma, type, q);
-            const total_price = g.price * scale;
+            const total_price = document.getElementById('ivSource').value === 'live' ? g.price * scale : markPrice * scale;
             const total_delta = g.delta_frac * scale;
             const total_gamma = g.gamma_frac * scale;
             const total_vega = g.vega_per_1pct * scale;
@@ -269,8 +270,8 @@
             low = Math.max(low, 1); high = Math.min(high, 10000);
             while (high - low > tol && iterations < 1000) {
                 const mid = (low + high) / 2;
-                const greeks = getPositionGreeks(mid, K, T, r, sigma);
-                const val = isPrice ? parseFloat(greeks.total_price) / scale : parseFloat(greeks.total_delta);
+                const greeks = blackScholesGreeks(mid, K, T, r, sigma);
+                const val = isPrice ? greeks.price : greeks.delta_frac * scale;
                 if (isNaN(val)) { high = mid; continue; }
                 const diff = isPrice ? (val - target / scale) : (val - target);
                 if (Math.abs(diff) < tol) return mid;
@@ -284,7 +285,6 @@
             document.getElementById('edrDays').value = days;
             updateAll();
         }
-        // Test API Key (provider-specific)
         async function testApiKey() {
             const provider = document.getElementById('apiProvider').value;
             const apiKey = document.getElementById('apiKey').value;
@@ -324,7 +324,6 @@
                 alert('API Test Failed: ' + e.message + '. Check console, verification, or tier.');
             }
         }
-        // ETF Proxy (approx SPX/VIX via SPY/UVXY - provider-specific)
         async function useEtfProxy() {
             const provider = document.getElementById('apiProvider').value;
             const apiKey = document.getElementById('apiKey').value;
@@ -371,7 +370,6 @@
                 alert('ETF Proxy Failed: ' + e.message + '. Use manual inputs. Check tier (Stocks for SPY).');
             }
         }
-        // Live Data Fetch (provider-specific)
         async function fetchLiveData(attempt = 1, maxAttempts = 3) {
             try {
                 const provider = document.getElementById('apiProvider').value;
@@ -385,7 +383,7 @@
                 localStorage.setItem('apiProvider', provider);
                 const timestamp = Date.now();
                 const now = new Date(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), new Date().getUTCDate(), new Date().getUTCHours(), new Date().getUTCMinutes()));
-                const etHour = now.getUTCHours() - 4; // UTC to ET
+                const etHour = now.getUTCHours() - 4;
                 const etMin = now.getUTCMinutes();
                 const isAfterHours = etHour < 9 || (etHour === 9 && etMin < 30) || etHour >= 16;
                 if (isAfterHours) {
@@ -395,7 +393,7 @@
                 }
                 const symbol = document.getElementById('symbol').value.toUpperCase() || 'SPX';
                 let formattedSymbol = symbol === 'SPX' ? (provider === 'polygon' ? 'I:SPX' : (provider === 'alpha' ? '^GSPC' : 'SPX')) : (symbol === 'VIX' ? (provider === 'polygon' ? 'I:VIX' : (provider === 'alpha' ? '^VIX' : '^VIX')) : symbol);
-                let spxUrl, vixUrl, parseSpxPrice, parseVix;
+                let spxUrl, parseSpxPrice;
                 if (symbol === 'SPX') {
                     if (provider === 'polygon') {
                         spxUrl = `https://api.polygon.io/v3/snapshot?indices=true&ticker=${formattedSymbol}&apiKey=${apiKey}&_=${timestamp}`;
@@ -419,7 +417,6 @@
                     }
                     document.getElementById('spx').value = spxPrice.toFixed(2);
                     console.log('API_FETCH_SUCCESS_SPX:', spxPrice);
-                    // IV fetch (placeholder for Options tier)
                     if (provider === 'polygon' && document.getElementById('ivSource').value === 'live') {
                         const optionUrl = `https://api.polygon.io/v3/snapshot/options/SPX?ticker=O:SPX251128C07000000&apiKey=${apiKey}&_=${timestamp}`;
                         try {
@@ -445,7 +442,7 @@
                     await new Promise(resolve => setTimeout(resolve, delay));
                     return fetchLiveData(attempt + 1, maxAttempts);
                 }
-                document.getElementById('currentGreeks').innerHTML = `<span class="error">API_FETCH_FAILED: All attempts failed (${e.message}). Using manual inputs (SPX: 6543, IV: 11.5).</span>`;
+                document.getElementById('currentGreeks').innerHTML = `<span class="error">API_FETCH_FAILED: All attempts failed (${e.message}). Using manual inputs (SPX: 6541, IV: 10.5).</span>`;
                 document.getElementById('contangoStatus').innerHTML = '<span class="contango">Contango: Buy favorable for long-term (fallback approximation)</span>';
                 if (apiKey) {
                     useEtfProxy();
@@ -466,11 +463,11 @@
         function updateAll() {
             try {
                 console.log('UPDATE_ALL_START');
-                const S_current = parseFloat(document.getElementById('spx')?.value) || 6543;
+                const S_current = parseFloat(document.getElementById('spx')?.value) || 6541;
                 const days = parseFloat(document.getElementById('days')?.value) || 79;
                 if (days !== 79) console.log('DTE_WARNING: Expected 79 for Nov 28, 2025; got', days);
                 const T = days / 365;
-                const iv = (parseFloat(document.getElementById('iv')?.value) || 11.5) / 100;
+                const iv = (parseFloat(document.getElementById('iv')?.value) || 10.5) / 100;
                 const rf = (parseFloat(document.getElementById('rf')?.value) || 4) / 100;
                 const K = parseFloat(document.getElementById('strike')?.value) || 7000;
                 const edrDays = parseFloat(document.getElementById('edrDays')?.value) || 30;
@@ -480,10 +477,11 @@
                 const currentEl = document.getElementById('currentGreeks');
                 if (currentEl) {
                     let edr = customEdr || (iv * Math.sqrt(edrDays / 365) * 2.1 * 100);
-                    currentEl.innerHTML = `Current (SPX ${S_current}): Delta ${currentGreeks.total_delta}, Gamma ${currentGreeks.total_gamma}, Theta ${currentGreeks.total_theta}, Vega ${currentGreeks.total_vega}, Value $${currentGreeks.total_price} (${currentGreeks.pl_pct}%)<br>95% EDR: ${edr.toFixed(3)}% in ${edrDays} days${customEdr ? ' (manual)' : ''}<br>` + (currentEl.innerHTML.includes('API_FETCH_SUCCESS') || currentEl.innerHTML.includes('API_FETCH_FAILED') ? currentEl.innerHTML : '');
+                    currentEl.innerHTML = `Current (SPX ${S_current}): Delta ${currentGreeks.total_delta}, Gamma ${currentGreeks.total_gamma}, Theta ${currentGreeks.total_theta}, Vega ${currentGreeks.total_vega}, Value $${currentGreeks.total_price} (${currentGreeks.pl_pct}%)<br>95% EDR: ${edr.toFixed(3)}% in ${edrDays} days${customEdr ? ' (manual)' : ' (calc from IV)'}<br>` + (currentEl.innerHTML.includes('API_FETCH_SUCCESS') || currentEl.innerHTML.includes('API_FETCH_FAILED') ? currentEl.innerHTML : '');
                 }
-                console.log('GREEKS_CALC: Delta', currentGreeks.total_delta, 'expected ~98.95, Theta', currentGreeks.total_theta, 'expected ~-393, Vega', currentGreeks.total_vega, 'expected ~5150');
+                console.log('GREEKS_CALC: Delta', currentGreeks.total_delta, 'expected ~98.14, Theta', currentGreeks.total_theta, 'expected ~-391, Vega', currentGreeks.total_vega, 'expected ~5118');
                 const INITIAL_COST = parseFloat(document.getElementById('initialCost')?.value) || 11350.20;
+                const markPrice = parseFloat(document.getElementById('markPrice')?.value) || 16.15;
                 const S_breakeven = solveForS(INITIAL_COST, true, S_current - 1000, S_current + 1000, 0.001, K, T, rf, iv);
                 const greeks_be = getPositionGreeks(S_breakeven, K, T, rf, iv);
                 const target_20_price = INITIAL_COST * 1.2;
@@ -569,7 +567,7 @@
                     const currentLine = {
                         type: 'line',
                         label: 'Current SPX',
-                        data: spxRange.map(s => ({x: S_current, y: s})), // Vertical line
+                        data: spxRange.map(s => ({x: S_current, y: s})),
                         borderColor: 'black',
                         borderDash: [5,5],
                         borderWidth: 1,
@@ -727,6 +725,6 @@
             }
         });
     </script>
-    <p><strong>Notes:</strong> Model uses Black-Scholes (calibrated to match: delta ~98.95, gamma ~0.54, theta ~-393, vega ~5150 at SPX 6543). Enter API key/symbol, select provider to fetch live data or use manual/ETF proxy. IV calibration toggle (manual/live). Contango/Backwardation is an approximation. Not financial advice.</p>
+    <p><strong>Notes:</strong> Model uses Black-Scholes (calibrated to match: delta ~98.14, gamma ~0.54, theta ~-391, vega ~5118 at SPX 6541). Enter API key/symbol, select provider to fetch live data or use manual/ETF proxy. IV calibration toggle (manual/live). EDR is 95% expected SPX range in 30 days (leave blank to calc from IV). Contango/Backwardation is an approximation. Not financial advice.</p>
 </body>
 </html>
