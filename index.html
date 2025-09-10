@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SPX Mastery Long-Term Options Analyzer (Build 1, Version 15)</title>
+    <title>SPX Mastery Long-Term Options Analyzer (Build 1, Version 16)</title>
     <link rel="icon" href="https://storage.googleapis.com/msgsndr/DbcHU95N4uVVUJoOWctG/media/68c18e9983b98269408909db.png">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js" onload="console.log('CDN_SUCCESS_1: jsDelivr loaded')" onerror="console.log('CDN_ERROR_1: jsDelivr failed'); loadFallbackCDN(1)"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/12.4.3/math.js"></script>
@@ -68,7 +68,7 @@
     <div class="disclaimer">
         <strong>Disclaimer:</strong> This tool is for educational purposes only and is not financial advice. Options trading involves significant risks, including the potential loss of your entire investment or more. Calculations are theoretical (Black-Scholes model) and may not reflect actual market conditions. The creator (spxmastery) is not liable for any financial losses or damages resulting from use of this tool. Consult a qualified financial advisor before trading options. See full disclaimer in the <a href="https://github.com/spxmastery/greeks">README</a>.
     </div>
-    <h1>SPX Mastery Long-Term Options Analyzer (Build 1, Version 15)</h1>
+    <h1>SPX Mastery Long-Term Options Analyzer (Build 1, Version 16)</h1>
     <div class="input-section">
         <h2>Input Parameters (Click Update to Recalculate)</h2>
         <div class="api-section">
@@ -87,9 +87,9 @@
         <p class="api-note">Get keys: <a href="https://polygon.io/pricing" target="_blank">Polygon.io</a> (Indices Starter $79/mo for I:SPX/I:VIX quotes; Options for chains), <a href="https://www.alphavantage.co" target="_blank">Alpha Vantage</a> (^GSPC/^VIX), or <a href="https://finnhub.io" target="_blank">Finnhub</a> (SPX/^VIX). Enter key/symbol, select provider, fetch. For Polygon, check tier (Indices for SPX/VIX). If "403" or "invalid", verify email/tier or contact support with Request ID. If fails, try ETF proxy. After-hours: Last close used.</p>
         <p id="fetchSuccess" class="fetch-success"></p>
         <div class="input-group">
-            <label title="The number of contracts in your position. Used to scale the Greeks and value.">Contracts: <input id="contracts" type="number" value="9" step="1" placeholder="Number of contracts (default 9)"></label>
+            <label title="The number of contracts in your position. Used to scale the Greeks and value.">Contracts: <input id="contracts" type="number" value="10" step="1" placeholder="Number of contracts (default 10)"></label>
             <label title="The total initial cost paid for the position ($). Used for P/L calculations.">Initial Cost ($): <input id="initialCost" type="number" value="11350.20" step="0.01" placeholder="Total initial cost (default 11350.20)"></label>
-            <label title="Current SPX price. Fetched live or manual fallback.">SPX: <input id="spx" type="number" value="6541" step="1" placeholder="Fallback: 6541"></label>
+            <label title="Current SPX price. Fetched live or manual fallback.">SPX: <input id="spx" type="number" value="6526" step="1" placeholder="Fallback: 6526"></label>
             <label title="Days to expiration for your option. Used to calculate T = days/365.">Days to Exp: <input id="days" type="number" value="79" step="1" placeholder="Fallback: 79 (enter actual)"></label>
             <label title="Source for implied volatility. 'Live' fetches from Polygon Options tier for accuracy.">IV Source: <select id="ivSource">
                 <option value="manual">Manual</option>
@@ -210,7 +210,7 @@
         new TradingView.widget({
             "width": "100%",
             "height": 400,
-            "symbol": "CBOE:SPX",
+            "symbol": "TVC:SPX",
             "interval": "D",
             "timezone": "Etc/UTC",
             "theme": "light",
@@ -238,16 +238,16 @@
     </script>
     <script>
         const charts = {};
-        const multiplier = 100; // SPX contract multiplier
-        
+        const multiplier = 100;
+
         function normPDF(x) {
             return math.exp(-0.5 * x * x) / math.sqrt(2 * math.PI);
         }
-        
+
         function normCDF(x) {
             return (1 + math.erf(x / math.sqrt(2))) / 2;
         }
-        
+
         function bsPrice(S, K, T, r, sigma, type) {
             if (T <= 0) {
                 if (type === 'call') return Math.max(S - K, 0);
@@ -261,18 +261,18 @@
                 return K * Math.exp(-r * T) * normCDF(-d2) - S * normCDF(-d1);
             }
         }
-        
+
         function bsDelta(S, K, T, r, sigma, type) {
             const d1 = (Math.log(S / K) + (r + 0.5 * sigma * sigma) * T) / (sigma * Math.sqrt(T));
             if (type === 'call') return normCDF(d1);
             else return normCDF(d1) - 1;
         }
-        
+
         function bsGamma(S, K, T, r, sigma) {
             const d1 = (Math.log(S / K) + (r + 0.5 * sigma * sigma) * T) / (sigma * Math.sqrt(T));
             return normPDF(d1) / (S * sigma * Math.sqrt(T));
         }
-        
+
         function bsTheta(S, K, T, r, sigma, type) {
             const d1 = (Math.log(S / K) + (r + 0.5 * sigma * sigma) * T) / (sigma * Math.sqrt(T));
             const d2 = d1 - sigma * Math.sqrt(T);
@@ -281,12 +281,12 @@
             if (type === 'call') return term1 - term2;
             else return term1 + term2;
         }
-        
+
         function bsVega(S, K, T, r, sigma) {
             const d1 = (Math.log(S / K) + (r + 0.5 * sigma * sigma) * T) / (sigma * Math.sqrt(T));
             return S * normPDF(d1) * Math.sqrt(T);
         }
-        
+
         function getPositionGreeks(S, K, T, r, sigma, type, contracts = 1) {
             const price = bsPrice(S, K, T, r, sigma, type);
             const delta = bsDelta(S, K, T, r, sigma, type);
@@ -301,7 +301,7 @@
                 total_vega: vega * contracts * multiplier
             };
         }
-        
+
         function solveForS(target_value, K, T, r, sigma, type, contracts, low = 1, high = 10000, tolerance = 1e-6) {
             let mid = (low + high) / 2;
             let iter = 0;
@@ -317,26 +317,28 @@
             }
             return mid;
         }
-        
+
         function testApiKey() {
             const provider = document.getElementById('apiProvider').value;
             const key = document.getElementById('apiKey').value;
             if (!key) return alert('Enter API key first');
             let url;
-            if (provider === 'polygon') url = `https://api.polygon.io/v2/aggs/ticker/I:SPX/prev?apiKey=${key}`;
+            if (provider === 'polygon') url = `https://api.polygon.io/v3/quotes/I:SPX?limit=1&apiKey=${key}`;
             else if (provider === 'alpha') url = `https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=^GSPC&apikey=${key}`;
             else if (provider === 'finnhub') url = `https://finnhub.io/api/v1/quote?symbol=SPX&token=${key}`;
             fetch(url)
                 .then(response => response.json())
                 .then(data => {
-                    if (provider === 'polygon' && data.results) alert('Valid! SPX: $' + data.results[0].c);
-                    else if (provider === 'alpha' && data['Global Quote']) alert('Valid! SPX: $' + data['Global Quote']['05. price']);
-                    else if (provider === 'finnhub' && data.c) alert('Valid! SPX: $' + data.c);
+                    let price;
+                    if (provider === 'polygon' && data.results) price = data.results[0].last_price;
+                    else if (provider === 'alpha' && data['Global Quote']) price = data['Global Quote']['05. price'];
+                    else if (provider === 'finnhub' && data.c) price = data.c;
+                    if (price) alert('Valid! SPX: $' + price);
                     else alert('Invalid key or tier - check console');
                 })
                 .catch(e => alert('Error: ' + e.message));
         }
-        
+
         function fetchLiveData() {
             const provider = document.getElementById('apiProvider').value;
             const key = document.getElementById('apiKey').value;
@@ -346,8 +348,8 @@
             const symbol = document.getElementById('symbol').value;
             let spxUrl, vixUrl;
             if (provider === 'polygon') {
-                spxUrl = `https://api.polygon.io/v2/aggs/ticker/I:SPX/prev?apiKey=${key}`;
-                vixUrl = `https://api.polygon.io/v2/aggs/ticker/I:VIX/prev?apiKey=${key}`;
+                spxUrl = `https://api.polygon.io/v3/quotes/I:SPX?limit=1&apiKey=${key}`;
+                vixUrl = `https://api.polygon.io/v3/quotes/I:VIX?limit=1&apiKey=${key}`;
             } else if (provider === 'alpha') {
                 spxUrl = `https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=^GSPC&apikey=${key}`;
                 vixUrl = `https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=^VIX&apikey=${key}`;
@@ -355,13 +357,17 @@
                 spxUrl = `https://finnhub.io/api/v1/quote?symbol=SPX&token=${key}`;
                 vixUrl = `https://finnhub.io/api/v1/quote?symbol=^VIX&token=${key}`;
             }
+            const now = new Date();
+            const etHour = now.getHours() -4; // UTC to ET
+            if (etHour <9.5 || etHour >=16) document.getElementById('afterHoursNote').style.display = 'block';
+            else document.getElementById('afterHoursNote').style.display = 'none';
             Promise.all([fetch(spxUrl), fetch(vixUrl)])
                 .then(responses => Promise.all(responses.map(r => r.json())))
                 .then(([spxData, vixData]) => {
                     let spx, vix;
                     if (provider === 'polygon') {
-                        spx = spxData.results[0].c;
-                        vix = vixData.results[0].c;
+                        spx = spxData.results[0].last_price;
+                        vix = vixData.results[0].last_price;
                     } else if (provider === 'alpha') {
                         spx = parseFloat(spxData['Global Quote']['05. price']);
                         vix = parseFloat(vixData['Global Quote']['05. price']);
@@ -379,15 +385,15 @@
                         const days = parseInt(document.getElementById('days').value);
                         const type = document.getElementById('optionType').value[0].toUpperCase();
                         const strike = document.getElementById('strike').value.padStart(8, '0');
-                        const expiration = new Date(Date.now() + days * 86400000).toISOString().slice(2,10).replace(/-/g, '');
+                        const expiration = new Date(now.getTime() + days * 86400000).toISOString().slice(2,10).replace(/-/g, '');
                         const contract = `O:SPX${expiration}${type}${strike}`;
-                        fetch(`https://api.polygon.io/v3/snapshot? tickers=${contract}&apiKey=${key}`)
+                        fetch(`https://api.polygon.io/v3/snapshot?ticker=${contract}&apiKey=${key}`)
                             .then(r => r.json())
                             .then(data => {
                                 const result = data.results[0];
-                                if (result) {
+                                if (result && result.implied_volatility) {
                                     const liveIv = result.implied_volatility *100;
-                                    const liveMark = result.day ? result.day.price : (result.bid + result.ask)/2;
+                                    const liveMark = result.last_price ? result.last_price : (result.bid + result.ask)/2;
                                     document.getElementById('iv').value = liveIv.toFixed(2);
                                     document.getElementById('markPrice').value = liveMark.toFixed(2);
                                     document.getElementById('fetchSuccess').innerText += ', Live IV: ' + liveIv.toFixed(2) + '%';
@@ -396,13 +402,13 @@
                                 }
                             }).catch(e => document.getElementById('fetchSuccess').innerText += ' - Live IV Error: ' + e.message);
                     }
-                    fetchEdr(provider, key, spx);
+                    fetchEdr(provider, key, spx || S_current);
                     fetchContango(provider, key);
-                    updateAll(); // Auto-update after fetch
+                    updateAll();
                 })
                 .catch(e => document.getElementById('fetchSuccess').innerText = 'Fetch Error: ' + e.message);
         }
-        
+
         function fetchEdr(provider, key, S) {
             if (provider !== 'polygon') {
                 document.getElementById('edrDisplay').innerText = 'Expected Move: Use Polygon for live EDR';
@@ -419,6 +425,7 @@
             fetch(`https://api.polygon.io/v3/reference/options/contracts?underlying_ticker=SPX&contract_type=call&expired=false&limit=1000&apiKey=${key}`)
                 .then(r => r.json())
                 .then(data => {
+                    if (!data.results) throw new Error('No expirations found');
                     const expirations = [...new Set(data.results.map(r => r.expiration_date))].sort();
                     const targetDate = new Date(Date.now() + edrDays * 86400000).toISOString().slice(0,10);
                     let closestExp = expirations.reduce((prev, curr) => {
@@ -429,8 +436,9 @@
                     fetch(`https://api.polygon.io/v3/snapshot/options/SPX?expiration_date=${closestExp}&strike_price.gte=${Math.floor(S -50)}&strike_price.lte=${Math.ceil(S +50)}&limit=100&apiKey=${key}`)
                         .then(r => r.json())
                         .then(data => {
-                            const calls = data.results.filter(c => c.details.contract_type === 'call');
-                            if (calls.length === 0) throw new Error('No ATM calls found');
+                            if (!data.results || data.results.length === 0) throw new Error('No ATM calls found');
+                            const calls = data.results.filter(c => c.details.contract_type === 'call' && c.implied_volatility);
+                            if (calls.length === 0) throw new Error('No valid ATM calls');
                             const atm = calls.reduce((prev, curr) => Math.abs(curr.details.strike_price - S) < Math.abs(prev.details.strike_price - S) ? curr : prev, calls[0]);
                             const atmIv = atm.implied_volatility *100;
                             const expectedPct = atmIv * Math.sqrt(edrDays /365);
@@ -439,49 +447,51 @@
                         }).catch(e => document.getElementById('edrDisplay').innerText = 'EDR Fetch Error: ' + e.message);
                 }).catch(e => document.getElementById('edrDisplay').innerText = 'EDR Fetch Error: ' + e.message);
         }
-        
+
         function fetchContango(provider, key) {
-            let vixUrl, vix3mUrl;
-            if (provider === 'polygon') {
-                vixUrl = `https://api.polygon.io/v3/quotes/I:VIX?apiKey=${key}`;
-                vix3mUrl = `https://api.polygon.io/v3/quotes/I:VIX3M?apiKey=${key}`;
-            } else {
+            if (provider !== 'polygon') {
                 document.getElementById('contangoStatus').innerHTML = 'Contango: Use Polygon for live data';
                 return;
             }
+            const vixUrl = `https://api.polygon.io/v2/last/quote/I:VIX?apiKey=${key}`;
+            const vix3mUrl = `https://api.polygon.io/v2/last/quote/I:VIX3M?apiKey=${key}`;
             Promise.all([fetch(vixUrl), fetch(vix3mUrl)])
                 .then(res => Promise.all(res.map(r => r.json())))
                 .then(([vixData, vix3mData]) => {
-                    const vix = vixData.results[0].last_price;
-                    const vix3m = vix3mData.results[0].last_price;
-                    const diff = ((vix3m - vix) / vix *100).toFixed(2);
-                    if (vix < vix3m) {
-                        document.getElementById('contangoStatus').innerHTML = '<span class="contango">Contango: +' + diff + '% (favorable for long calls)</span>';
+                    const vix = vixData.last.price;
+                    const vix3m = vix3mData.last.price;
+                    if (vix && vix3m) {
+                        const diff = ((vix3m - vix) / vix *100).toFixed(2);
+                        if (vix < vix3m) {
+                            document.getElementById('contangoStatus').innerHTML = '<span class="contango">Contango: +' + diff + '% (favorable for long calls)</span>';
+                        } else {
+                            document.getElementById('contangoStatus').innerHTML = '<span class="backwardation">Backwardation: ' + diff + '% (high vol warning)</span>';
+                        }
                     } else {
-                        document.getElementById('contangoStatus').innerHTML = '<span class="backwardation">Backwardation: ' + diff + '% (high vol warning)</span>';
+                        throw new Error('Invalid data');
                     }
                 }).catch(e => document.getElementById('contangoStatus').innerHTML = 'Contango Fetch Error: ' + e.message);
         }
-        
+
         function useEtfProxy() {
-            // Implement if needed, e.g., fetch SPY and adjust for SPX proxy
+            // Implement ETF proxy if needed
         }
-        
+
         function clearApiKey() {
             localStorage.removeItem('apiKey');
             localStorage.removeItem('apiProvider');
             document.getElementById('apiKey').value = '';
         }
-        
+
         function setEdrDays(days) {
             document.getElementById('edrDays').value = days;
             fetchLiveData();
         }
-        
+
         function updateAll() {
-            const contracts = parseInt(document.getElementById('contracts').value) || 9;
+            const contracts = parseInt(document.getElementById('contracts').value) || 10;
             const initialCost = parseFloat(document.getElementById('initialCost').value) || 11350.20;
-            const S_current = parseFloat(document.getElementById('spx').value) || 6541;
+            const S_current = parseFloat(document.getElementById('spx').value) || 6526;
             const days = parseFloat(document.getElementById('days').value) || 79;
             const iv = parseFloat(document.getElementById('iv').value) || 10.5;
             const rf = parseFloat(document.getElementById('rf').value) /100 || 0.04;
@@ -489,26 +499,190 @@
             const markPrice = parseFloat(document.getElementById('markPrice').value) || 16.15;
             const type = document.getElementById('optionType').value || 'call';
             const K = parseFloat(document.getElementById('strike').value) || 7000;
-            const edrDays = parseFloat(document.getElementById('edrDays').value) || 30;
-            const customEdr = parseFloat(document.getElementById('customEdr').value) || null;
             const T = days /365;
+            if (isNaN(iv) || iv === 0) return document.getElementById('chartError').innerText = 'Invalid IV - enter or fetch valid value';
             const greeks = getPositionGreeks(S_current, K, T, rf, iv/100, type, contracts);
             const currentValue = greeks.total_price;
             const plPct = ((currentValue - initialCost) / initialCost *100).toFixed(2);
             document.getElementById('currentGreeks').innerText = 'Current (SPX ' + S_current.toFixed(2) + '): Delta ' + greeks.total_delta.toFixed(2) + ', Gamma ' + greeks.total_gamma.toFixed(2) + ', Theta ' + greeks.total_theta.toFixed(2) + ', Vega ' + greeks.total_vega.toFixed(2) + ', Value $' + currentValue.toFixed(2) + ' (' + plPct + '%)';
-            if (customEdr) {
-                const expectedPct = customEdr * Math.sqrt(edrDays /365);
-                const expectedPoints = S_current * (expectedPct /100);
-                document.getElementById('edrDisplay').innerText = 'Expected Move (1SD): ' + customEdr.toFixed(3) + '% in ' + edrDays + ' days (custom), +- ' + expectedPoints.toFixed(2) + ' pts';
-            }
-            // Table population...
-            // (Omitted for brevity, same as before but with range widened to -5000/+5000 for solveForS low/high)
+            // Table population
+            document.getElementById('currentSpx').innerText = S_current.toFixed(0) + ' (0)';
+            document.getElementById('currentDelta').innerText = greeks.total_delta.toFixed(2);
+            document.getElementById('currentGamma').innerText = greeks.total_gamma.toFixed(2);
+            document.getElementById('currentTheta').innerText = greeks.total_theta.toFixed(2);
+            document.getElementById('currentVega').innerText = greeks.total_vega.toFixed(2);
+            document.getElementById('currentValue').innerText = '$' + currentValue.toFixed(2) + '\n(' + plPct + '%)';
+            const premiumPerPoint = initialCost / (contracts * multiplier);
+            const expBreakeven = type === 'call' ? K + premiumPerPoint : K - premiumPerPoint;
+            document.getElementById('expirationBreakevenSpx').innerText = expBreakeven.toFixed(0) + ' (+' + (expBreakeven - S_current).toFixed(0) + ')';
+            const breakevenTarget = initialCost;
             const breakevenLow = type === 'call' ? Math.max(1, S_current -5000) : S_current;
             const breakevenHigh = type === 'call' ? S_current +5000 : Math.max(1, S_current -5000);
-            // Similar for others
-            // Render charts (same)
+            const breakevenS = solveForS(breakevenTarget, K, T, rf, iv/100, type, contracts, breakevenLow, breakevenHigh);
+            const breakevenGreeks = getPositionGreeks(breakevenS, K, T, rf, iv/100, type, contracts);
+            document.getElementById('breakevenSpx').innerText = breakevenS.toFixed(0) + ' (+' + (breakevenS - S_current).toFixed(0) + ')';
+            document.getElementById('breakevenDelta').innerText = breakevenGreeks.total_delta.toFixed(2);
+            document.getElementById('breakevenGamma').innerText = breakevenGreeks.total_gamma.toFixed(2);
+            document.getElementById('breakevenTheta').innerText = breakevenGreeks.total_theta.toFixed(2);
+            document.getElementById('breakevenVega').innerText = breakevenGreeks.total_vega.toFixed(2);
+            document.getElementById('breakevenValue').innerText = '$' + breakevenGreeks.total_price.toFixed(2) + '\n(0%)';
+            const profit20Target = initialCost * 1.2;
+            const profit20Low = currentValue > profit20Target ? Math.max(1, S_current -5000) : S_current;
+            const profit20High = currentValue > profit20Target ? S_current : S_current +5000;
+            const profit20S = solveForS(profit20Target, K, T, rf, iv/100, type, contracts, profit20Low, profit20High);
+            const profit20Greeks = getPositionGreeks(profit20S, K, T, rf, iv/100, type, contracts);
+            document.getElementById('profit20Spx').innerText = profit20S.toFixed(0) + ' (+' + (profit20S - S_current).toFixed(0) + ')';
+            document.getElementById('profit20Delta').innerText = profit20Greeks.total_delta.toFixed(2);
+            document.getElementById('profit20Gamma').innerText = profit20Greeks.total_gamma.toFixed(2);
+            document.getElementById('profit20Theta').innerText = profit20Greeks.total_theta.toFixed(2);
+            document.getElementById('profit20Vega').innerText = profit20Greeks.total_vega.toFixed(2);
+            document.getElementById('profit20Value').innerText = '$' + profit20Greeks.total_price.toFixed(2) + '\n(+20%)';
+            const highProfitTarget = initialCost * 7.54;
+            const highProfitLow = currentValue > highProfitTarget ? Math.max(1, S_current -5000) : S_current;
+            const highProfitHigh = currentValue > highProfitTarget ? S_current : S_current +5000;
+            const highProfitS = solveForS(highProfitTarget, K, T, rf, iv/100, type, contracts, highProfitLow, highProfitHigh);
+            const highProfitGreeks = getPositionGreeks(highProfitS, K, T, rf, iv/100, type, contracts);
+            document.getElementById('highProfitSpx').innerText = highProfitS.toFixed(0) + ' (+' + (highProfitS - S_current).toFixed(0) + ')';
+            document.getElementById('highProfitDelta').innerText = highProfitGreeks.total_delta.toFixed(2);
+            document.getElementById('highProfitGamma').innerText = highProfitGreeks.total_gamma.toFixed(2);
+            document.getElementById('highProfitTheta').innerText = highProfitGreeks.total_theta.toFixed(2);
+            document.getElementById('highProfitVega').innerText = highProfitGreeks.total_vega.toFixed(2);
+            document.getElementById('highProfitValue').innerText = '$' + highProfitGreeks.total_price.toFixed(2) + '\n(+654%)';
+            const spxRange = Array.from({length: 71}, (_, i) => 6400 + i *10);
+            const deltas = spxRange.map(s => getPositionGreeks(s, K, T, rf, iv/100, type, contracts).total_delta);
+            const gammas = spxRange.map(s => getPositionGreeks(s, K, T, rf, iv/100, type, contracts).total_gamma);
+            const thetas = spxRange.map(s => getPositionGreeks(s, K, T, rf, iv/100, type, contracts).total_theta);
+            const vegas = spxRange.map(s => getPositionGreeks(s, K, T, rf, iv/100, type, contracts).total_vega);
+            if (typeof Chart === 'undefined') {
+                document.getElementById('chartError').style.display = 'block';
+                document.getElementById('chartError').innerText = 'Chart.js not loaded. Check console or disable ad blockers.';
+                return;
+            }
+            Object.keys(charts).forEach(key => charts[key]?.destroy());
+            const currentLine = {
+                type: 'line',
+                label: 'Current SPX',
+                data: spxRange.map(s => ({x: S_current, y: s})),
+                borderColor: 'black',
+                borderDash: [5,5],
+                borderWidth: 1,
+                pointRadius: 0,
+                fill: false
+            };
+            charts.delta = new Chart(document.getElementById('deltaChart').getContext('2d'), {
+                type: 'line',
+                data: {
+                    labels: spxRange,
+                    datasets: [{
+                        label: 'Delta',
+                        data: deltas,
+                        borderColor: 'blue',
+                        fill: false,
+                        tension: 0.1
+                    }, {
+                        label: 'Red (50)',
+                        data: Array(spxRange.length).fill(50),
+                        borderColor: 'red',
+                        borderDash: [5,5],
+                        fill: false,
+                        pointRadius: 0
+                    }, {
+                        label: 'Yellow (100)',
+                        data: Array(spxRange.length).fill(100),
+                        borderColor: 'orange',
+                        borderDash: [5,5],
+                        fill: false,
+                        pointRadius: 0
+                    }, currentLine]
+                },
+                options: { responsive: true, scales: { y: { beginAtZero: true } }, plugins: { legend: { display: true } } }
+            });
+            charts.gamma = new Chart(document.getElementById('gammaChart').getContext('2d'), {
+                type: 'line',
+                data: {
+                    labels: spxRange,
+                    datasets: [{
+                        label: 'Gamma',
+                        data: gammas,
+                        borderColor: 'blue',
+                        fill: false,
+                        tension: 0.1
+                    }, {
+                        label: 'Red (0.3)',
+                        data: Array(spxRange.length).fill(0.3),
+                        borderColor: 'red',
+                        borderDash: [5,5],
+                        fill: false,
+                        pointRadius: 0
+                    }, {
+                        label: 'Yellow (0.6)',
+                        data: Array(spxRange.length).fill(0.6),
+                        borderColor: 'orange',
+                        borderDash: [5,5],
+                        fill: false,
+                        pointRadius: 0
+                    }, currentLine]
+                },
+                options: { responsive: true, scales: { y: { beginAtZero: true } }, plugins: { legend: { display: true } } }
+            });
+            charts.theta = new Chart(document.getElementById('thetaChart').getContext('2d'), {
+                type: 'line',
+                data: {
+                    labels: spxRange,
+                    datasets: [{
+                        label: 'Theta',
+                        data: thetas,
+                        borderColor: 'blue',
+                        fill: false,
+                        tension: 0.1
+                    }, {
+                        label: 'Green (-400)',
+                        data: Array(spxRange.length).fill(-400),
+                        borderColor: 'green',
+                        borderDash: [5,5],
+                        fill: false,
+                        pointRadius: 0
+                    }, {
+                        label: 'Red (-600)',
+                        data: Array(spxRange.length).fill(-600),
+                        borderColor: 'red',
+                        borderDash: [5,5],
+                        fill: false,
+                        pointRadius: 0
+                    }, currentLine]
+                },
+                options: { responsive: true, scales: { y: { min: -1000, max: 0 } }, plugins: { legend: { display: true } } }
+            });
+            charts.vega = new Chart(document.getElementById('vegaChart').getContext('2d'), {
+                type: 'line',
+                data: {
+                    labels: spxRange,
+                    datasets: [{
+                        label: 'Vega',
+                        data: vegas,
+                        borderColor: 'blue',
+                        fill: false,
+                        tension: 0.1
+                    }, {
+                        label: 'Red (3000)',
+                        data: Array(spxRange.length).fill(3000),
+                        borderColor: 'red',
+                        borderDash: [5,5],
+                        fill: false,
+                        pointRadius: 0
+                    }, {
+                        label: 'Yellow (5000)',
+                        data: Array(spxRange.length).fill(5000),
+                        borderColor: 'orange',
+                        borderDash: [5,5],
+                        fill: false,
+                        pointRadius: 0
+                    }, currentLine]
+                },
+                options: { responsive: true, scales: { y: { beginAtZero: true } }, plugins: { legend: { display: true } } }
+            });
         }
-        
+
         window.addEventListener('load', function() {
             const savedApiKey = localStorage.getItem('apiKey');
             const savedProvider = localStorage.getItem('apiProvider') || 'polygon';
@@ -521,8 +695,8 @@
     </script>
     <p><strong>Notes:</strong> Model uses Black-Scholes (calibrated to match TOS Greeks). Enter API key/symbol, select provider to fetch live data. IV live fetch for accuracy. Expected Move is 1SD range based on ATM IV (matches TOS option chain IV % per DTE, with +- pts/% computed). Contango/Backwardation live. Not financial advice.</p>
     <div id="finra-disclosure">
-        <strong>Full FINRA Options Disclosure:</strong> As required by FINRA Rule 2220 and SEC Rule 9b-1, read the Characteristics and Risks of Standardized Options (ODD) before trading options. The ODD explains key characteristics and risks of exchange-traded options, including potential total loss. Current version (June 2024): Download <a href="https://www.theocc.com/getmedia/a151a9ae-d784-4a15-bdeb-23a029f50b70/riskstoc.pdf" target="_blank">PDF from OCC</a>. Summary: Options involve risks not suitable for all investors; you may lose your entire investment. Consult a financial advisor. For full text, see OCC website.
+        <strong>Full FINRA Options Disclosure:</strong> As required by FINRA Rule 2220 and SEC Rule 9b-1, read the Characteristics and Risks of Standardized Options (ODD) before trading options. The ODD explains key characteristics and risks of exchange-traded options, including potential total loss. Current version (June 2024): Download PDF from OCC. Summary: Options involve risks not suitable for all investors; you may lose your entire investment. Consult a financial advisor. For full text, see OCC website.
     </div>
-    <p class="version">Build 1, Version 15 - September 10, 2025</p>
+    <p class="version">Build 1, Version 16 - September 10, 2025</p>
 </body>
 </html>
