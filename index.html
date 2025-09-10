@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SPX Mastery Long-Term Options Analyzer (Build 1, Version 10)</title>
+    <title>SPX Mastery Long-Term Options Analyzer (Build 1, Version 11)</title>
     <link rel="icon" href="https://storage.googleapis.com/msgsndr/DbcHU95N4uVVUJoOWctG/media/68c18e9983b98269408909db.png">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js" onload="console.log('CDN_SUCCESS_1: jsDelivr loaded')" onerror="console.log('CDN_ERROR_1: jsDelivr failed'); loadFallbackCDN(1)"></script>
     <script>
@@ -66,7 +66,7 @@
     <div class="disclaimer">
         <strong>Disclaimer:</strong> This tool is for educational purposes only and is not financial advice. Options trading involves significant risks, including the potential loss of your entire investment or more. Calculations are theoretical (Black-Scholes model) and may not reflect actual market conditions. The creator (spxmastery) is not liable for any financial losses or damages resulting from use of this tool. Consult a qualified financial advisor before trading options. See full disclaimer in the <a href="https://github.com/spxmastery/greeks">README</a>.
     </div>
-    <h1>SPX Mastery Long-Term Options Analyzer (Build 1, Version 10)</h1>
+    <h1>SPX Mastery Long-Term Options Analyzer (Build 1, Version 11)</h1>
     <div class="input-section">
         <h2>Input Parameters (Click Update to Recalculate)</h2>
         <div class="api-section">
@@ -85,12 +85,16 @@
         <p class="api-note">Get keys: <a href="https://polygon.io/pricing" target="_blank">Polygon.io</a> (Indices Starter $79/mo for I:SPX/I:VIX quotes; Options for chains), <a href="https://www.alphavantage.co" target="_blank">Alpha Vantage</a> (^GSPC/^VIX), or <a href="https://finnhub.io" target="_blank">Finnhub</a> (SPX/^VIX). Enter key/symbol, select provider, fetch. For Polygon, check tier (Indices for SPX/VIX). If "403" or "invalid", verify email/tier or contact support with Request ID. If fails, try ETF proxy. After-hours: Last close used.</p>
         <div class="input-group">
             <label>Contracts: <input id="contracts" type="number" value="9" step="1" placeholder="Number of contracts (default 9)"></label>
-            <label>SPX: <input id="spx" type="number" value="6541" step="1" placeholder="Fallback: 6541"></label>
-            <label>Days to Exp: <input id="days" type="number" value="81" step="1" placeholder="Fallback: 81"></label>
+            <label>SPX: <input id="spx" type="number" value="6538" step="1" placeholder="Fallback: 6538"></label>
+            <label>Days to Exp: <input id="days" type="number" value="81" step="1" placeholder="Fallback: 81 (enter actual)"></label>
             <label>IV (%): <input id="iv" type="number" value="15.20" step="0.01" placeholder="Fallback: 15.20"></label>
             <label>Risk Free (%): <input id="rf" type="number" value="4" step="0.01" placeholder="Fallback: 4"></label>
         </div>
         <div class="input-group">
+            <label>Type: <select id="optionType">
+                <option value="call">Call</option>
+                <option value="put">Put</option>
+            </select></label>
             <label>Strike Price: <input id="strike" type="number" value="7000" step="1" placeholder="Enter your owned strike (default 7000)"></label>
             <label>EDR Days: <input id="edrDays" type="number" value="30" step="1" placeholder="Fallback: 30 (0 for 0 DTE)"></label>
             <label>Custom EDR (%): <input id="customEdr" type="number" value="" step="0.001" placeholder="Enter manual EDR (overrides calc)"></label>
@@ -150,7 +154,7 @@
         <canvas id="vegaChart"></canvas>
         <div class="legend">Red <3000: Exit/Stop | 3000-5000 Yellow: Warning | >5000 Green: Profit</div>
     </div>
-    <p class="version">Build 1, Version 10 - Sep 10, 2025</p>
+    <p class="version">Build 1, Version 11 - Sep 10, 2025</p>
     <div id="finra-disclosure" class="disclaimer" style="font-size: 10px;">
         <strong>Full FINRA Options Disclosure:</strong> Options involve risks and are not suitable for all investors. Prior to buying or selling an option, a person must receive a copy of the Characteristics and Risks of Standardized Options (ODD). The ODD contains general disclosures on the characteristics and risks of trading standardized options, including potential loss of principal, market volatility, and other factors. Copies of the ODD are available from your broker or from The Options Clearing Corporation (OCC) at <a href="https://www.theocc.com/company-information/documents-and-archives/options-disclosure-document" target="_blank">www.theocc.com</a>. This tool does not constitute advice; consult a professional.
     </div>
@@ -173,7 +177,7 @@
         });
         new TradingView.widget({
           "autosize": true,
-          "symbol": "TVC:VIX",
+          "symbol": "CBOE:VIX",
           "interval": "D",
           "timezone": "Etc/UTC",
           "theme": "light",
@@ -205,21 +209,28 @@
                 return 1 - (1 / Math.sqrt(2 * Math.PI)) * Math.exp(-0.5 * x * x) * kSum;
             } catch (e) { console.log('GREEKS_ERROR_NORM_CDF:', e); return 0.5; }
         }
-        function blackScholesGreeks(S, K, T, r, sigma) {
+        function blackScholesGreeks(S, K, T, r, sigma, type = 'call') {
             try {
-                console.log('GREEKS_CALC_START: S=', S, 'K=', K, 'T=', T, 'r=', r, 'sigma=', sigma);
+                console.log('GREEKS_CALC_START: S=', S, 'K=', K, 'T=', T, 'r=', r, 'sigma=', sigma, 'type=', type);
                 if (T <= 0 || sigma <= 0 || S <= 0 || K <= 0) {
                     console.log('GREEKS_ERROR_PARAMS: Invalid inputs');
                     return { price: 0, delta_frac: 0, gamma_frac: 0, vega_per_1pct: 0, theta_per_share: 0 };
                 }
                 const d1 = (Math.log(S / K) + (r + 0.5 * sigma * sigma) * T) / (sigma * Math.sqrt(T));
                 const d2 = d1 - sigma * Math.sqrt(T);
-                const price = S * normCDF(d1) - K * Math.exp(-r * T) * normCDF(d2);
-                const delta_frac = normCDF(d1);
+                let price, delta_frac, theta_per_share;
+                if (type === 'call') {
+                    price = S * normCDF(d1) - K * Math.exp(-r * T) * normCDF(d2);
+                    delta_frac = normCDF(d1);
+                    theta_per_share = - (S * normPDF(d1) * sigma) / (2 * Math.sqrt(T)) - r * K * Math.exp(-r * T) * normCDF(d2);
+                } else { // put
+                    price = K * Math.exp(-r * T) * normCDF(-d2) - S * normCDF(-d1);
+                    delta_frac = -normCDF(-d1);
+                    theta_per_share = - (S * normPDF(d1) * sigma) / (2 * Math.sqrt(T)) + r * K * Math.exp(-r * T) * normCDF(-d2);
+                }
                 const gamma_frac = normPDF(d1) / (S * sigma * Math.sqrt(T)) || 0;
                 const vega_per_unit_sigma = S * normPDF(d1) * Math.sqrt(T);
                 const vega_per_1pct = vega_per_unit_sigma * 0.01;
-                let theta_per_share = - (S * normPDF(d1) * sigma) / (2 * Math.sqrt(T)) - r * K * Math.exp(-r * T) * normCDF(d2);
                 theta_per_share /= 365; // Calendar days
                 console.log('GREEKS_CALC_END: price=', price, 'delta_frac=', delta_frac, 'theta_per_share=', theta_per_share);
                 return { price, delta_frac, gamma_frac, vega_per_1pct, theta_per_share };
@@ -232,8 +243,9 @@
             const contracts = parseFloat(document.getElementById('contracts')?.value) || 9;
             const scale = contracts * 100;
             const initialCost = 13750 * (contracts / 10);
-            console.log('POSITION_GREEKS_START: scale=', scale, 'sigma=', sigma);
-            const g = blackScholesGreeks(S, K, T, r, sigma);
+            const type = document.getElementById('optionType').value;
+            console.log('POSITION_GREEKS_START: scale=', scale, 'sigma=', sigma, 'type=', type);
+            const g = blackScholesGreeks(S, K, T, r, sigma, type);
             const total_price = g.price * scale;
             const total_delta = g.delta_frac * scale;
             const total_gamma = g.gamma_frac * scale;
@@ -305,7 +317,50 @@
         }
         // ETF Proxy (approx SPX/VIX via SPY/UVXY - provider-specific)
         async function useEtfProxy() {
-            // As before
+            const provider = document.getElementById('apiProvider').value;
+            const apiKey = document.getElementById('apiKey').value;
+            if (!apiKey) {
+                alert('Enter API key for proxy!');
+                return;
+            }
+            let spySymbol = provider === 'polygon' ? 'SPY' : (provider === 'alpha' ? 'SPY' : 'SPY');
+            let vixSymbol = provider === 'polygon' ? 'UVXY' : (provider === 'alpha' ? '^VIX' : '^VIX');
+            let spyUrl, vixUrl, parseSpyPrice, parseVix;
+            if (provider === 'polygon') {
+                spyUrl = `https://api.polygon.io/v3/snapshot?indices=true&ticker=${spySymbol}&apiKey=${apiKey}`;
+                vixUrl = `https://api.polygon.io/v3/snapshot?indices=true&ticker=${vixSymbol}&apiKey=${apiKey}`;
+                parseSpyPrice = data => data.results[0].value;
+                parseVix = data => data.results[0].value;
+            } else if (provider === 'alpha') {
+                spyUrl = `https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${spySymbol}&apikey=${apiKey}`;
+                vixUrl = `https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${vixSymbol}&apikey=${apiKey}`;
+                parseSpyPrice = data => data['Global Quote']['05. price'];
+                parseVix = data => data['Global Quote']['05. price'];
+            } else {
+                spyUrl = `https://finnhub.io/api/v1/quote?symbol=${spySymbol}&token=${apiKey}`;
+                vixUrl = `https://finnhub.io/api/v1/quote?symbol=${vixSymbol}&token=${apiKey}`;
+                parseSpyPrice = data => data.c;
+                parseVix = data => data.c;
+            }
+            try {
+                const spyResponse = await fetch(spyUrl);
+                const spyData = await spyResponse.json();
+                let spyPrice = parseSpyPrice(spyData);
+                if (spyPrice > 0) {
+                    document.getElementById('spx').value = (parseFloat(spyPrice) * 10).toFixed(2);
+                }
+                const vixResponse = await fetch(vixUrl);
+                const vixData = await vixResponse.json();
+                let vix = parseVix(vixData);
+                if (vix > 0) {
+                    const ivApprox = vix * 0.656;
+                    document.getElementById('iv').value = ivApprox.toFixed(2);
+                }
+                document.getElementById('currentGreeks').innerHTML = '<span class="fetch-success">ETF Proxy Applied: SPX/SPY, IV/VIX approx. Click Update.</span>';
+                updateAll();
+            } catch (e) {
+                alert('ETF Proxy Failed: ' + e.message + '. Use manual inputs. Check tier (Stocks for SPY).');
+            }
         }
         // Live Data Fetch (provider-specific)
         async function fetchLiveData(attempt = 1, maxAttempts = 3) {
@@ -370,7 +425,7 @@
                     await new Promise(resolve => setTimeout(resolve, delay));
                     return fetchLiveData(attempt + 1, maxAttempts);
                 }
-                document.getElementById('currentGreeks').innerHTML = `<span class="error">API_FETCH_FAILED: All attempts failed (${e.message}). Using manual inputs (SPX: 6541, IV: 15.20).</span>`;
+                document.getElementById('currentGreeks').innerHTML = `<span class="error">API_FETCH_FAILED: All attempts failed (${e.message}). Using manual inputs (SPX: 6538, IV: 15.20).</span>`;
                 document.getElementById('contangoStatus').innerHTML = '<span class="contango">Contango: Buy favorable for long-term (fallback approximation)</span>';
                 if (apiKey) {
                     useEtfProxy();
@@ -391,7 +446,7 @@
         function updateAll() {
             try {
                 console.log('UPDATE_ALL_START');
-                const S_current = parseFloat(document.getElementById('spx')?.value) || 6541;
+                const S_current = parseFloat(document.getElementById('spx')?.value) || 6538;
                 const days = parseFloat(document.getElementById('days')?.value) || 81;
                 const T = days / 365;
                 const iv = (parseFloat(document.getElementById('iv')?.value) || 15.20) / 100;
@@ -406,10 +461,11 @@
                     let edr = customEdr || (iv * Math.sqrt(edrDays / 365) * 2.1 * 100);
                     currentEl.innerHTML = `Current (SPX ${S_current}): Delta ${currentGreeks.total_delta}, Gamma ${currentGreeks.total_gamma}, Theta ${currentGreeks.total_theta}, Vega ${currentGreeks.total_vega}, Value $${currentGreeks.total_price} (${currentGreeks.pl_pct}%)<br>95% EDR: ${edr.toFixed(3)}% in ${edrDays} days${customEdr ? ' (manual)' : ''}<br>` + (currentEl.innerHTML.includes('API_FETCH_SUCCESS') || currentEl.innerHTML.includes('API_FETCH_FAILED') ? currentEl.innerHTML : '');
                 }
-                console.log('GREEKS_CALC: Delta', currentGreeks.total_delta, 'expected ~97.47, Theta', currentGreeks.total_theta, 'expected ~-389, Vega', currentGreeks.total_vega, 'expected ~5093');
-                const S_breakeven = solveForS(initialCost, true, S_current - 1000, S_current + 1000, 0.001, K, T, rf, iv);
+                console.log('GREEKS_CALC: Delta', currentGreeks.total_delta, 'expected ~96.79, Theta', currentGreeks.total_theta, 'expected ~-387, Vega', currentGreeks.total_vega, 'expected ~5065');
+                const INITIAL_COST = 13750 * (parseFloat(document.getElementById('contracts')?.value) || 9) / 10; // Fix typo
+                const S_breakeven = solveForS(INITIAL_COST, true, S_current - 1000, S_current + 1000, 0.001, K, T, rf, iv);
                 const greeks_be = getPositionGreeks(S_breakeven, K, T, rf, iv);
-                const target_20_price = initialCost * 1.2;
+                const target_20_price = INITIAL_COST * 1.2;
                 const S_20 = solveForS(target_20_price, true, S_current, S_current + 1000, 0.001, K, T, rf, iv);
                 const greeks_20 = getPositionGreeks(S_20, K, T, rf, iv);
                 const target_delta_high = 300;
@@ -464,7 +520,7 @@
                                 <td>${greeks_high.total_gamma}</td>
                                 <td>${greeks_high.total_theta}</td>
                                 <td>${greeks_high.total_vega}</td>
-                                <td>$${greeks_high.total_price}<br>(+${((parseFloat(greeks_high.total_price) - initialCost)/initialCost*100).toFixed(0)}%)</td>
+                                <td>$${greeks_high.total_price}<br>(+${((parseFloat(greeks_high.total_price) - INITIAL_COST)/INITIAL_COST*100).toFixed(0)}%)</td>
                             </tr>
                         </tbody>
                     `;
@@ -651,6 +707,6 @@
             }
         });
     </script>
-    <p><strong>Notes:</strong> Model uses Black-Scholes (calibrated to match: delta ~97.47, gamma ~0.53, theta ~-389, vega ~5093 at SPX 6541). Enter API key/symbol, select provider to fetch live data or use manual/ETF proxy. IV calibration toggle (manual/live). Contango/Backwardation is an approximation. Not financial advice.</p>
+    <p><strong>Notes:</strong> Model uses Black-Scholes (calibrated to match: delta ~96.79, gamma ~0.53, theta ~-387, vega ~5065 at SPX 6538). Enter API key/symbol, select provider to fetch live data or use manual/ETF proxy. IV calibration toggle (manual/live). Contango/Backwardation is an approximation. Not financial advice.</p>
 </body>
 </html>
