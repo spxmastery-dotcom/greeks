@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SPX Mastery Long-Term Options Analyzer (Build 1, Version 26)</title>
+    <title>SPX Mastery Long-Term Options Analyzer (Build 1, Version 27)</title>
     <link rel="icon" href="https://storage.googleapis.com/msgsndr/DbcHU95N4uVVUJoOWctG/media/68c18e9983b98269408909db.png">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js" onload="console.log('CDN_SUCCESS_1: jsDelivr loaded')" onerror="console.log('CDN_ERROR_1: jsDelivr failed'); loadFallbackCDN(1)"></script>
     <script>
@@ -16,7 +16,7 @@
                 console.log(`CDN_ERROR_${attempt + 1}: Fallback failed [Timestamp: ${new Date().toISOString()}]`);
                 if (attempt === 1) loadFallbackCDN(2);
                 else {
-                    console.log('CDN_ERROR_ALL: All Chart.js CDNs failed [Timestamp: ' + new Date().toISOString() + ']');
+                    console.log('CDN_ERROR_ALL: All Chart.js CDNs failed [Timestamp: ${new Date().toISOString()}]');
                     document.getElementById('chartError').style.display = 'block';
                     document.getElementById('chartError').innerText = 'CDN_ERROR_ALL: All Chart.js CDNs failed. Disable ad blockers or try incognito mode [Timestamp: ' + new Date().toISOString() + ']';
                 }
@@ -44,7 +44,6 @@
         .profit-row { background-color: #d4edda; }
         .high-profit-row { background-color: #c3e6cb; }
         .suggested-row { background-color: #add8e6; }
-        .highlight-row { background-color: yellow; }
         p { margin-top: 20px; font-size: 14px; color: #666; text-align: center; }
         .legend { text-align: center; margin: 10px 0; }
         .teal { color: teal; font-weight: bold; }
@@ -72,7 +71,7 @@
     <div class="disclaimer">
         <strong>Disclaimer:</strong> This tool is for educational purposes only and is not financial advice. Options trading involves significant risks, including the potential loss of your entire investment or more. Calculations are theoretical (Black-Scholes model) and may not reflect actual market conditions. The creator (spxmastery) is not liable for any financial losses or damages resulting from use of this tool. Consult a qualified financial advisor before trading options.
     </div>
-    <h1>SPX Mastery Long-Term Options Analyzer (Build 1, Version 26)</h1>
+    <h1>SPX Mastery Long-Term Options Analyzer (Build 1, Version 27)</h1>
     <div class="input-section">
         <h2>Input Parameters (Click Update to Recalculate)</h2>
         <div class="api-section">
@@ -126,7 +125,7 @@
     <div class="chain-container" id="chainContainer" style="display: none;">
         <h3>Options Chain (Select Row for Strike/Premium/IV)</h3>
         <table id="chainTable">
-            <thead><tr><th>Strike</th><th>Bid</th><th>Ask</th><th>Mid</th><th>IV (%)</th><th>Delta</th><th>Gamma</th><th>Theta</th><th>Vega</th></tr></thead>
+            <thead><tr><th>Strike</th><th>Bid</th><th>Ask</th><th>Mid</th><th>IV (%)</th><th>Delta</th><th>Gamma</th><th>Theta</th><th>Vega</th><th>Skew (%)</th></tr></thead>
             <tbody></tbody>
         </table>
         <p>Suggested: Highlighted rows have delta 0.4-0.6 (balanced for vol plays/short-term trades).</p>
@@ -334,18 +333,16 @@
                 document.getElementById('afterHoursNote').innerText = isAfterHours ? (isHoliday ? 'Market Closed (Holiday): Data is last close [ET Time: ' + etHour + ':' + etMin + ']' : 'After-Hours: Data is last close (4:00 PM EDT) [ET Time: ' + etHour + ':' + etMin + ']') : 'Market Open [ET Time: ' + etHour + ':' + etMin + ']';
                 let spxPrice, vixSpot, atmIV;
                 if (provider === 'polygon') {
-                    const spxPromise = timeoutPromise(fetch(`https://api.polygon.io/v2/aggs/ticker/I:SPX/prev?apiKey=${apiKey}`), 10000);
-                    const spxResp = await spxPromise;
+                    const spxResp = await timeoutPromise(fetch(`https://api.polygon.io/v3/snapshot/indices?ticker=I:SPX&apiKey=${apiKey}`), 10000);
                     if (!spxResp.ok) throw new Error('API_ERROR_SPX_HTTP_' + spxResp.status + ': Check API key permissions or Indices subscription [Timestamp: ' + new Date().toISOString() + ']');
                     const spxData = await spxResp.json();
-                    if (!spxData.results?.[0]?.c) throw new Error('API_ERROR_NO_SPX: Empty SPX response [Response: ' + JSON.stringify(spxData) + '] [Timestamp: ' + new Date().toISOString() + ']');
-                    spxPrice = spxData.results[0].c;
-                    const vixPromise = timeoutPromise(fetch(`https://api.polygon.io/v2/aggs/ticker/I:VIX/prev?apiKey=${apiKey}`), 10000);
-                    const vixResp = await vixPromise;
+                    if (!spxData.results?.[0]) throw new Error('API_ERROR_NO_SPX: Empty SPX response [Response: ' + JSON.stringify(spxData) + '] [Timestamp: ' + new Date().toISOString() + ']');
+                    spxPrice = spxData.results[0].value || spxData.results[0].prev_close;
+                    const vixResp = await timeoutPromise(fetch(`https://api.polygon.io/v3/snapshot/indices?ticker=I:VIX&apiKey=${apiKey}`), 10000);
                     if (!vixResp.ok) throw new Error('API_ERROR_VIX_HTTP_' + vixResp.status + ': Check API key permissions or Indices subscription [Timestamp: ' + new Date().toISOString() + ']');
                     const vixData = await vixResp.json();
-                    if (!vixData.results?.[0]?.c) throw new Error('API_ERROR_NO_VIX: Empty VIX response [Response: ' + JSON.stringify(vixData) + '] [Timestamp: ' + new Date().toISOString() + ']');
-                    vixSpot = vixData.results[0].c;
+                    if (!vixData.results?.[0]) throw new Error('API_ERROR_NO_VIX: Empty VIX response [Response: ' + JSON.stringify(vixData) + '] [Timestamp: ' + new Date().toISOString() + ']');
+                    vixSpot = vixData.results[0].value || vixData.results[0].prev_close;
                     // Fetch ATM IV from options chain
                     const exp = document.getElementById('expiration').value;
                     const type = document.getElementById('optionType').value.toLowerCase();
@@ -411,7 +408,7 @@
                 let driftNote = '';
                 if (Math.abs(fetchedGreeks.delta - expectedDelta) > 0.05) {
                     console.log('CALIBRATION_DRIFT: Delta ' + fetchedGreeks.delta.toFixed(2) + ' deviates >5% from expected ' + expectedDelta + ' [Timestamp: ' + new Date().toISOString() + ']');
-                    driftNote = ' (Recalibrating - use live IV)';
+                    driftNote = ' (Drift detected - recalibrating)';
                 }
                 document.getElementById('notes').innerText = `Notes: Model calibrated to match: delta ~${fetchedGreeks.delta.toFixed(2)}, gamma ~${fetchedGreeks.gamma.toFixed(2)}, theta ~${fetchedGreeks.theta.toFixed(0)}, vega ~${fetchedGreeks.vega.toFixed(0)} at SPX ${spxPrice.toFixed(0)}${driftNote}. Fetch chain for contract selection (suggest delta 0.4-0.6). EDR 95% range (override blank for auto). Contango uses front VIX future/spot. Colors color-blind friendly. For short-term: Use DTE forecast for buy/sell timing (e.g., sell on high theta). Not financial advice.`;
                 let contangoStatus = 'Contango Unknown';
@@ -477,7 +474,7 @@
                 const type = document.getElementById('optionType').value.toLowerCase();
                 const spxPrice = parseFloat(document.getElementById('spx').value);
                 if (!apiKey || !exp || isNaN(spxPrice)) throw new Error('FETCH_CHAIN_ERROR: Missing API key, expiration, or SPX price [Timestamp: ' + new Date().toISOString() + ']');
-                const url = `https://api.polygon.io/v3/snapshot/options/SPX?expiration_date=${exp}&contract_type=${type}&limit=200&strike_price_gte=${spxPrice-500}&strike_price_lte=${spxPrice+500}&apiKey=${apiKey}`;
+                const url = `https://api.polygon.io/v3/snapshot/options/SPX?expiration_date=${exp}&contract_type=${type}&order=asc&limit=100&sort=strike_price&apiKey=${apiKey}`;
                 const promise = timeoutPromise(fetch(url), 10000);
                 const resp = await promise;
                 if (!resp.ok) throw new Error('FETCH_CHAIN_HTTP_' + resp.status + ': Check API key or Options subscription [Timestamp: ' + new Date().toISOString() + ']');
@@ -489,31 +486,45 @@
                 console.log('Options Chain Response:', data);
                 const tbody = document.getElementById('chainTable').getElementsByTagName('tbody')[0];
                 tbody.innerHTML = '';
-                data.results.forEach(opt => {
+                let atmIV = 0;
+                let atmOption = data.results.reduce((prev, curr) => 
+                    Math.abs(curr.details.strike_price - spxPrice) < Math.abs(prev.details.strike_price - spxPrice) ? curr : prev
+                );
+                atmIV = atmOption.implied_volatility * 100;
+                data.results = data.results.sort((a, b) => a.details.strike_price - b.details.strike_price);
+                const filteredResults = data.results.filter(opt => {
+                    if (type === 'call') {
+                        return opt.details.strike_price >= spxPrice -50 && opt.details.strike_price <= spxPrice +1000;
+                    } else {
+                        return opt.details.strike_price <= spxPrice +50 && opt.details.strike_price >= spxPrice -1000;
+                    }
+                });
+                filteredResults.forEach(opt => {
                     const contract = opt.details || opt;
                     const day = opt.day || {};
-                    if (!contract) return;
                     const bid = day.bid_price || 'N/A';
                     const ask = day.ask_price || 'N/A';
                     const mid = (bid !== 'N/A' && ask !== 'N/A') ? ((bid + ask) / 2).toFixed(2) : 'N/A';
-                    const iv = (contract.implied_volatility * 100)?.toFixed(2) || 'N/A';
-                    const delta = contract.greeks?.delta?.toFixed(2) || blackScholesGreeks(spxPrice, contract.strike_price, calculateDTE(exp), parseFloat(document.getElementById('r').value) / 100, contract.implied_volatility || 0.15, parseFloat(document.getElementById('q').value) / 100, type).delta.toFixed(2);
-                    const gamma = contract.greeks?.gamma?.toFixed(4) || blackScholesGreeks(spxPrice, contract.strike_price, calculateDTE(exp), parseFloat(document.getElementById('r').value) / 100, contract.implied_volatility || 0.15, parseFloat(document.getElementById('q').value) / 100, type).gamma.toFixed(4);
-                    const theta = contract.greeks?.theta?.toFixed(2) || blackScholesGreeks(spxPrice, contract.strike_price, calculateDTE(exp), parseFloat(document.getElementById('r').value) / 100, contract.implied_volatility || 0.15, parseFloat(document.getElementById('q').value) / 100, type).theta.toFixed(2);
-                    const vega = contract.greeks?.vega?.toFixed(2) || blackScholesGreeks(spxPrice, contract.strike_price, calculateDTE(exp), parseFloat(document.getElementById('r').value) / 100, contract.implied_volatility || 0.15, parseFloat(document.getElementById('q').value) / 100, type).vega.toFixed(2);
-                    if (!delta || isNaN(delta)) {
-                        console.warn('Invalid greeks for strike:', contract.strike_price);
-                        return;
+                    const iv = (opt.implied_volatility * 100)?.toFixed(2) || 'N/A';
+                    const delta = opt.greeks?.delta?.toFixed(2) || 'N/A';
+                    const gamma = opt.greeks?.gamma?.toFixed(4) || 'N/A';
+                    const theta = opt.greeks?.theta?.toFixed(2) || 'N/A';
+                    const vega = opt.greeks?.vega?.toFixed(2) || 'N/A';
+                    if (isNaN(parseFloat(delta))) {
+                        showError('PARSE_NA: Off-hours data—retry live [Timestamp: ' + new Date().toISOString() + ']');
+                    }
+                    const skew = (parseFloat(iv) - atmIV).toFixed(2);
+                    if (skew > 15) {
+                        showError('SKEW_WARNING: High skew (>15) - Buy OTM before crush [Timestamp: ' + new Date().toISOString() + ']');
                     }
                     const row = document.createElement('tr');
-                    row.innerHTML = `<td>${contract.strike_price || 'N/A'}</td><td>${bid}</td><td>${ask}</td><td>${mid}</td><td>${iv}</td><td>${delta}</td><td>${gamma}</td><td>${theta}</td><td>${vega}</td>`;
-                    if (parseFloat(delta) >= 0.4 && parseFloat(delta) <= 0.6) row.className = 'highlight-row';
+                    row.innerHTML = `<td>${opt.details.strike_price}</td><td>${bid}</td><td>${ask}</td><td>${mid}</td><td>${iv}</td><td>${delta}</td><td>${gamma}</td><td>${theta}</td><td>${vega}</td><td>${skew}</td>`;
+                    if (parseFloat(delta) >= 0.4 && parseFloat(delta) <= 0.6) row.className = 'suggested-row';
                     row.onclick = () => {
                         const cells = row.cells;
                         document.getElementById('strike').value = cells[0].textContent;
                         document.getElementById('premium').value = cells[3].textContent;
                         document.getElementById('iv').value = cells[4].textContent;
-                        dataSource = 'live';
                         updateAll();
                     };
                     tbody.appendChild(row);
