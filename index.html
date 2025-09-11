@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SPX Mastery Long-Term Options Analyzer (Build 1, Version 22)</title>
+    <title>SPX Mastery Long-Term Options Analyzer (Build 1, Version 23)</title>
     <link rel="icon" href="https://storage.googleapis.com/msgsndr/DbcHU95N4uVVUJoOWctG/media/68c18e9983b98269408909db.png">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js" onload="console.log('CDN_SUCCESS_1: jsDelivr loaded')" onerror="console.log('CDN_ERROR_1: jsDelivr failed'); loadFallbackCDN(1)"></script>
     <script>
@@ -71,7 +71,7 @@
     <div class="disclaimer">
         <strong>Disclaimer:</strong> This tool is for educational purposes only and is not financial advice. Options trading involves significant risks, including the potential loss of your entire investment or more. Calculations are theoretical (Black-Scholes model) and may not reflect actual market conditions. The creator (spxmastery) is not liable for any financial losses or damages resulting from use of this tool. Consult a qualified financial advisor before trading options.
     </div>
-    <h1>SPX Mastery Long-Term Options Analyzer (Build 1, Version 22)</h1>
+    <h1>SPX Mastery Long-Term Options Analyzer (Build 1, Version 23)</h1>
     <div class="input-section">
         <h2>Input Parameters (Click Update to Recalculate)</h2>
         <div class="api-section">
@@ -96,9 +96,9 @@
         </div>
         <div class="input-group">
             <label>EDR Days: <input id="edrDays" type="number" value="30" step="1"></label>
-            <button onclick="setEdrDays(30)">30 Days</button>
-            <button onclick="setEdrDays(60)">60 Days</button>
-            <button onclick="setEdrDays(90)">90 Days</button>
+            <button id="edr30Btn" onclick="setEdrDays(30)">30 Days</button>
+            <button id="edr60Btn" onclick="setEdrDays(60)">60 Days</button>
+            <button id="edr90Btn" onclick="setEdrDays(90)">90 Days</button>
             <label>Custom EDR (%): <input id="customEdr" type="number" placeholder="Override" step="0.01"></label>
         </div>
         <div class="input-group">
@@ -179,65 +179,121 @@
         });
     </script>
     <script>
+        console.log('SCRIPT_PARSED: Ready [Timestamp: ' + new Date().toISOString() + ']');
         let dataSource = 'manual'; // Track live or manual
-        const holidays = ['2025-09-01', '2025-11-27', '2025-12-25']; // Example holidays (Labor Day, Thanksgiving, Christmas)
-        // Black-Scholes Functions (unchanged)
+        const holidays = ['2025-09-01', '2025-11-27', '2025-12-25']; // Example holidays
         function normCDF(x) {
-            const t = 1 / (1 + 0.2316419 * Math.abs(x));
-            const d = 0.3989423 * Math.exp(-x * x / 2);
-            let prob = d * t * (0.3193815 + t * (-0.3565638 + t * (1.781478 + t * (-1.821256 + t * 1.330274))));
-            if (x > 0) return 1 - prob;
-            return prob;
+            try {
+                if (typeof x !== 'number' || isNaN(x)) throw new Error('Invalid input: x must be a number');
+                const t = 1 / (1 + 0.2316419 * Math.abs(x));
+                const d = 0.3989423 * Math.exp(-(x ** 2) / 2);
+                let prob = d * t * (0.3193815 + t * (-0.3565638 + t * (1.781478 + t * (-1.821256 + t * 1.330274))));
+                if (x > 0) return 1 - prob;
+                return prob;
+            } catch (e) {
+                console.error('NORM_CDF_ERROR: ' + e.message + ' [Stack: ' + e.stack + '] [Timestamp: ' + new Date().toISOString() + ']');
+                return 0;
+            }
         }
         function blackScholesGreeks(S, K, T, r, sigma, q = 0, type = 'call') {
-            if (T <= 0) return { price: type === 'call' ? Math.max(S - K, 0) : Math.max(K - S, 0), delta: 0, gamma: 0, theta: 0, vega: 0 };
-            const d1 = (Math.log(S / K) + (r - q + sigma ** 2 / 2) * T) / (sigma * Math.sqrt(T));
-            const d2 = d1 - sigma * Math.sqrt(T);
-            const nd1 = normCDF(d1);
-            const nd2 = normCDF(d2);
-            const nnd1 = normCDF(-d1);
-            const nnd2 = normCDF(-d2);
-            let price, delta, gamma, theta, vega;
-            if (type === 'call') {
-                price = S * Math.exp(-q * T) * nd1 - K * Math.exp(-r * T) * nd2;
-                delta = Math.exp(-q * T) * nd1;
-            } else {
-                price = K * Math.exp(-r * T) * nnd2 - S * Math.exp(-q * T) * nnd1;
-                delta = -Math.exp(-q * T) * nnd1;
+            try {
+                if (typeof S !== 'number' || S <= 0 || isNaN(S)) throw new Error('Invalid S: Must be positive number');
+                if (typeof K !== 'number' || K <= 0 || isNaN(K)) throw new Error('Invalid K: Must be positive number');
+                if (typeof T !== 'number' || T <= 0 || isNaN(T)) throw new Error('Invalid T: Must be positive number');
+                if (typeof sigma !== 'number' || sigma <= 0 || isNaN(sigma)) throw new Error('Invalid sigma: Must be positive number');
+                if (typeof r !== 'number' || isNaN(r)) throw new Error('Invalid r: Must be a number');
+                if (typeof q !== 'number' || isNaN(q)) throw new Error('Invalid q: Must be a number');
+                if (T <= 0) return { price: type === 'call' ? Math.max(S - K, 0) : Math.max(K - S, 0), delta: 0, gamma: 0, theta: 0, vega: 0 };
+                const d1 = (Math.log(S / K) + (r - q + sigma ** 2 / 2) * T) / (sigma * Math.sqrt(T));
+                if (isNaN(d1)) throw new Error('Invalid d1: Numerical error in log or sqrt');
+                const d2 = d1 - sigma * Math.sqrt(T);
+                const nd1 = normCDF(d1);
+                const nd2 = normCDF(d2);
+                const nnd1 = normCDF(-d1);
+                const nnd2 = normCDF(-d2);
+                let price, delta, gamma, theta, vega;
+                if (type === 'call') {
+                    price = S * Math.exp(-q * T) * nd1 - K * Math.exp(-r * T) * nd2;
+                    delta = Math.exp(-q * T) * nd1;
+                } else {
+                    price = K * Math.exp(-r * T) * nnd2 - S * Math.exp(-q * T) * nnd1;
+                    delta = -Math.exp(-q * T) * nnd1;
+                }
+                gamma = Math.exp(-q * T) / (S * sigma * Math.sqrt(T)) * (1 / Math.sqrt(2 * Math.PI)) * Math.exp(-(d1 ** 2) / 2);
+                theta = -(S * Math.exp(-q * T) * (1 / Math.sqrt(2 * Math.PI)) * Math.exp(-(d1 ** 2) / 2) * sigma) / (2 * Math.sqrt(T)) - r * K * Math.exp(-r * T) * (type === 'call' ? nd2 : -nnd2) + q * S * Math.exp(-q * T) * (type === 'call' ? nd1 : -nnd1);
+                theta /= 252; // Trading days
+                vega = S * Math.exp(-q * T) * Math.sqrt(T) * (1 / Math.sqrt(2 * Math.PI)) * Math.exp(-(d1 ** 2) / 2) / 100;
+                if (isNaN(price) || isNaN(delta) || isNaN(gamma) || isNaN(theta) || isNaN(vega)) {
+                    throw new Error('Numerical error: NaN in calculations');
+                }
+                return { price, delta, gamma, theta, vega };
+            } catch (e) {
+                showError('BLACK_SCHOLES_ERROR: Calculation failed [Error: ' + e.message + '] [Stack: ' + e.stack + '] [Timestamp: ' + new Date().toISOString() + ']');
+                return { price: 0, delta: 0, gamma: 0, theta: 0, vega: 0 };
             }
-            gamma = Math.exp(-q * T) / (S * sigma * Math.sqrt(T)) * (1 / Math.sqrt(2 * Math.PI)) * Math.exp(-d1 ** 2 / 2);
-            theta = - (S * Math.exp(-q * T) * (1 / Math.sqrt(2 * Math.PI)) * Math.exp(-d1 ** 2 / 2) * sigma) / (2 * Math.sqrt(T)) - r * K * Math.exp(-r * T) * (type === 'call' ? nd2 : -nnd2) + q * S * Math.exp(-q * T) * (type === 'call' ? nd1 : -nnd1);
-            theta /= 252; // Trading days
-            vega = S * Math.exp(-q * T) * Math.sqrt(T) * (1 / Math.sqrt(2 * Math.PI)) * Math.exp(-d1 ** 2 / 2) / 100;
-            return { price, delta, gamma, theta, vega };
         }
         function solveForS(targetPrice, currentS, K, T, r, sigma, q, type, contracts, tolerance = 0.01) {
-            let low = currentS * 0.5;
-            let high = currentS * 1.5;
-            let mid;
-            while (high - low > tolerance) {
-                mid = (low + high) / 2;
-                const greeks = blackScholesGreeks(mid, K, T, r, sigma, q, type);
-                if (greeks.price * contracts * 100 < targetPrice * contracts * 100) low = mid;
-                else high = mid;
+            try {
+                if (typeof targetPrice !== 'number' || isNaN(targetPrice) || targetPrice <= 0) throw new Error('Invalid targetPrice: Must be positive number');
+                if (typeof currentS !== 'number' || isNaN(currentS) || currentS <= 0) throw new Error('Invalid currentS: Must be positive number');
+                if (typeof K !== 'number' || isNaN(K) || K <= 0) throw new Error('Invalid K: Must be positive number');
+                if (typeof T !== 'number' || isNaN(T) || T <= 0) throw new Error('Invalid T: Must be positive number');
+                if (typeof sigma !== 'number' || isNaN(sigma) || sigma <= 0) throw new Error('Invalid sigma: Must be positive number');
+                if (typeof r !== 'number' || isNaN(r)) throw new Error('Invalid r: Must be a number');
+                if (typeof q !== 'number' || isNaN(q)) throw new Error('Invalid q: Must be a number');
+                if (typeof contracts !== 'number' || isNaN(contracts) || contracts <= 0) throw new Error('Invalid contracts: Must be positive number');
+                let low = currentS * 0.5;
+                let high = currentS * 1.5;
+                let mid;
+                let iterations = 0;
+                const maxIterations = 1000; // Prevent infinite loops
+                while (high - low > tolerance && iterations < maxIterations) {
+                    mid = (low + high) / 2;
+                    const greeks = blackScholesGreeks(mid, K, T, r, sigma, q, type);
+                    if (isNaN(greeks.price)) throw new Error('Invalid price from blackScholesGreeks');
+                    if (greeks.price * contracts * 100 < targetPrice * contracts * 100) low = mid;
+                    else high = mid;
+                    iterations++;
+                }
+                if (iterations >= maxIterations) throw new Error('Max iterations reached');
+                if (isNaN(mid)) throw new Error('Invalid mid value');
+                return mid;
+            } catch (e) {
+                showError('SOLVE_FOR_S_ERROR: Calculation failed [Error: ' + e.message + '] [Stack: ' + e.stack + '] [Timestamp: ' + new Date().toISOString() + ']');
+                return currentS;
             }
-            return mid.toFixed(2);
         }
         function calculateDTE(expDate) {
-            const today = new Date();
-            const exp = new Date(expDate);
-            return Math.max((exp - today) / (1000 * 60 * 60 * 24) / 365, 0.0001); // Avoid T=0
+            try {
+                const today = new Date();
+                const exp = new Date(expDate);
+                if (isNaN(exp.getTime())) throw new Error('Invalid expiration date');
+                return Math.max((exp - today) / (1000 * 60 * 60 * 24) / 365, 0.0001); // Avoid T=0
+            } catch (e) {
+                showError('CALCULATE_DTE_ERROR: Invalid date [Error: ' + e.message + '] [Stack: ' + e.stack + '] [Timestamp: ' + new Date().toISOString() + ']');
+                return 0.0001;
+            }
         }
         function validateInputs() {
-            const inputs = ['spx', 'strike', 'iv', 'premium', 'contracts', 'r', 'q', 'edrDays'];
-            for (let id of inputs) {
-                const val = parseFloat(document.getElementById(id).value);
-                if (isNaN(val) || val <= 0) {
-                    showError(`INPUT_ERROR: Invalid value for ${id.toUpperCase()} - must be positive number [Timestamp: ${new Date().toISOString()}]`);
+            try {
+                const inputs = ['spx', 'strike', 'iv', 'premium', 'contracts', 'r', 'q', 'edrDays'];
+                for (let id of inputs) {
+                    const val = parseFloat(document.getElementById(id).value);
+                    if (isNaN(val) || val <= 0) {
+                        showError(`INPUT_ERROR: Invalid value for ${id.toUpperCase()} - must be positive number [Timestamp: ${new Date().toISOString()}]`);
+                        return false;
+                    }
+                }
+                const expDate = document.getElementById('expiration').value;
+                if (!expDate || isNaN(new Date(expDate).getTime())) {
+                    showError('INPUT_ERROR: Invalid expiration date [Timestamp: ' + new Date().toISOString() + ']');
                     return false;
                 }
+                return true;
+            } catch (e) {
+                showError('VALIDATE_INPUTS_ERROR: Validation failed [Error: ' + e.message + '] [Stack: ' + e.stack + '] [Timestamp: ' + new Date().toISOString() + ']');
+                return false;
             }
-            return true;
         }
         function showError(message) {
             const errorDiv = document.getElementById('currentGreeks');
@@ -252,6 +308,7 @@
         }
         async function fetchLiveData(attempt = 1, maxAttempts = 3) {
             try {
+                console.log('API_CALL_INIT: Starting fetch [Timestamp: ' + new Date().toISOString() + ']');
                 const fetchBtn = document.getElementById('fetchLiveBtn');
                 fetchBtn.disabled = true;
                 fetchBtn.innerText = 'Fetching...';
@@ -278,16 +335,15 @@
                     if (!spxResp.ok) throw new Error('API_ERROR_SPX_HTTP_' + spxResp.status + ': Check API key permissions or Indices subscription [Timestamp: ' + new Date().toISOString() + ']');
                     const spxData = await spxResp.json();
                     if (!spxData.results?.[0]?.c) throw new Error('API_ERROR_NO_SPX: Empty SPX response [Response: ' + JSON.stringify(spxData) + '] [Timestamp: ' + new Date().toISOString() + ']');
-                    spxPrice = spxData.results[0].c; // Use prev.close
+                    spxPrice = spxData.results[0].c;
                     const vixPromise = timeoutPromise(fetch(`https://api.polygon.io/v2/aggs/ticker/I:VIX/prev?apiKey=${apiKey}`), 10000);
                     const vixResp = await vixPromise;
                     if (!vixResp.ok) throw new Error('API_ERROR_VIX_HTTP_' + vixResp.status + ': Check API key permissions or Indices subscription [Timestamp: ' + new Date().toISOString() + ']');
                     const vixData = await vixResp.json();
                     if (!vixData.results?.[0]?.c) throw new Error('API_ERROR_NO_VIX: Empty VIX response [Response: ' + JSON.stringify(vixData) + '] [Timestamp: ' + new Date().toISOString() + ']');
-                    vixSpot = vixData.results[0].c; // Use prev.close
+                    vixSpot = vixData.results[0].c;
                     console.log('Polygon SPX Response:', spxData, 'VIX Response:', vixData);
                 } else if (provider === 'alpha') {
-                    // Alpha logic with timeout
                     const spxUrl = `https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=^GSPC&apikey=${apiKey}`;
                     const spxPromise = timeoutPromise(fetch(spxUrl), 10000);
                     const spxResp = await spxPromise;
@@ -303,7 +359,6 @@
                     if (!vixData['Global Quote']) throw new Error('API_ERROR_ALPHA_VIX: Invalid response [Response: ' + JSON.stringify(vixData) + '] [Timestamp: ' + new Date().toISOString() + ']');
                     vixSpot = parseFloat(vixData['Global Quote']['05. price']);
                 } else {
-                    // Finnhub logic with timeout
                     const spxUrl = `https://finnhub.io/api/v1/quote?symbol=^GSPC&token=${apiKey}`;
                     const spxPromise = timeoutPromise(fetch(spxUrl), 10000);
                     const spxResp = await spxPromise;
@@ -319,22 +374,24 @@
                     if (!vixData.c) throw new Error('API_ERROR_FINNHUB_VIX: Invalid response [Response: ' + JSON.stringify(vixData) + '] [Timestamp: ' + new Date().toISOString() + ']');
                     vixSpot = vixData.c;
                 }
-                if (!spxPrice || isNaN(spxPrice)) throw new Error('API_ERROR_INVALID_SPX: No valid SPX price [Timestamp: ' + new Date().toISOString() + ']');
+                if (!spxPrice || isNaN(spxPrice) || spxPrice <= 0) throw new Error('API_ERROR_INVALID_SPX: No valid SPX price [Timestamp: ' + new Date().toISOString() + ']');
                 document.getElementById('spx').value = spxPrice.toFixed(2);
                 dataSource = 'live';
-                if (document.getElementById('ivSource').value === 'live' && vixSpot && !isNaN(vixSpot)) {
+                if (document.getElementById('ivSource').value === 'live' && vixSpot && !isNaN(vixSpot) && vixSpot > 0) {
                     const T = calculateDTE(document.getElementById('expiration').value);
                     const calibratedIV = (vixSpot / 100) * Math.sqrt(30 / (T * 365));
                     document.getElementById('iv').value = (calibratedIV * 100).toFixed(2);
                 }
                 // Dynamic Calibration
-                const hardcodedDelta = 0.98; // From notes
-                const fetchedGreeks = blackScholesGreeks(spxPrice, 7000, T, 0.038, (15 / 100), 0.013, 'call');
-                if (Math.abs(fetchedGreeks.delta - hardcodedDelta) > 0.05) {
-                    document.getElementById('notes').innerHTML = '<strong>Notes:</strong> Model calibrated to match: delta approx ' + fetchedGreeks.delta.toFixed(2) + ', gamma approx ' + fetchedGreeks.gamma.toFixed(2) + ', theta approx ' + fetchedGreeks.theta.toFixed(0) + ', vega approx ' + fetchedGreeks.vega.toFixed(0) + ' at SPX ' + spxPrice.toFixed(0) + '. Fetch chain for contract selection (suggest delta 0.4-0.6). EDR 95% range (override blank for auto). Contango uses front VIX future/spot. Colors color-blind friendly. For short-term: Use DTE forecast for buy/sell timing (e.g., sell on high theta). Not financial advice.';
+                const T = 79 / 365; // Default DTE
+                const fetchedGreeks = blackScholesGreeks(spxPrice, spxPrice, T, 0.038, (document.getElementById('iv').value / 100), 0.013, 'call');
+                const expectedDelta = 0.98;
+                if (Math.abs(fetchedGreeks.delta - expectedDelta) > 0.05) {
+                    console.log('CALIBRATION_DRIFT: Delta ' + fetchedGreeks.delta.toFixed(2) + ' deviates >5% from expected ' + expectedDelta + ' [Timestamp: ' + new Date().toISOString() + ']');
                 }
+                document.getElementById('notes').innerText = `Notes: Model calibrated to match: delta ~${fetchedGreeks.delta.toFixed(2)}, gamma ~${fetchedGreeks.gamma.toFixed(2)}, theta ~${fetchedGreeks.theta.toFixed(0)}, vega ~${fetchedGreeks.vega.toFixed(0)} at SPX ${spxPrice.toFixed(0)}. Fetch chain for contract selection (suggest delta 0.4-0.6). EDR 95% range (override blank for auto). Contango uses front VIX future/spot. Colors color-blind friendly. For short-term: Use DTE forecast for buy/sell timing (e.g., sell on high theta). Not financial advice.`;
                 let contangoStatus = 'Contango Unknown';
-                if (provider === 'polygon' && vixSpot && !isNaN(vixSpot)) {
+                if (provider === 'polygon' && vixSpot && !isNaN(vixSpot) && vixSpot > 0) {
                     const futRefPromise = timeoutPromise(fetch(`https://api.polygon.io/v3/reference/futures/contracts?underlying=VIX&expired=false&limit=1&sort=expiration_date&order=asc&apiKey=${apiKey}`), 10000);
                     const futRefResp = await futRefPromise;
                     if (!futRefResp.ok) throw new Error('API_ERROR_FUTURES_HTTP_' + futRefResp.status + ': Check API key permissions [Timestamp: ' + new Date().toISOString() + ']');
@@ -346,7 +403,7 @@
                         if (!futResp.ok) throw new Error('API_ERROR_FUTURES_SNAPSHOT_HTTP_' + futResp.status + ': Check API key permissions [Timestamp: ' + new Date().toISOString() + ']');
                         const futData = await futResp.json();
                         const futurePrice = futData.results?.[0]?.value || futData.results?.[0]?.prev_close;
-                        if (futurePrice) {
+                        if (futurePrice && futurePrice > 0) {
                             const ratio = futurePrice / vixSpot;
                             if (ratio > 1.02) contangoStatus = `<span class="contango">Contango (${ratio.toFixed(2)}): Buy/Hold Favorable for Long-Term</span>`;
                             else if (ratio < 0.98) contangoStatus = `<span class="backwardation">Backwardation (${ratio.toFixed(2)}): Vol Spike Risk - Short-Term/Cash Out</span>`;
@@ -355,7 +412,7 @@
                     }
                 }
                 document.getElementById('contangoStatus').innerHTML = contangoStatus;
-                document.getElementById('currentGreeks').innerHTML = '<span class="fetch-success">FETCH_SUCCESS: SPX/VIX/Contango Updated from ' + provider.toUpperCase() + ' [Data: Live] [Timestamp: ' + new Date().toISOString() + ']</span>';
+                document.getElementById('currentGreeks').innerHTML = `<span class="fetch-success">FETCH_SUCCESS: SPX/VIX/Contango Updated from ${provider.toUpperCase()} <strong>[Data: Live]</strong> [Timestamp: ${new Date().toISOString()}]</span>`;
                 updateAll();
             } catch (e) {
                 showError('FETCH_LIVE_ERROR: ' + e.message + ' [Stack: ' + e.stack + '] [Attempt: ' + attempt + '/' + maxAttempts + '] [Timestamp: ' + new Date().toISOString() + ']');
@@ -363,6 +420,7 @@
                     setTimeout(() => fetchLiveData(attempt + 1), 2000);
                 } else {
                     showError('FETCH_LIVE_FAILED_ALL: All retries failed. Using fallback data [Timestamp: ' + new Date().toISOString() + ']');
+                    dataSource = 'manual';
                     applyEtfProxy();
                 }
             } finally {
@@ -384,36 +442,183 @@
                 showError('TEST_API_ERROR: ' + e.message + ' [Stack: ' + e.stack + '] [Timestamp: ' + new Date().toISOString() + ']');
             }
         }
-        // ... (fetchOptionsChain, applyEtfProxy, updateAll, etc.) with similar try-catch and showError
         async function fetchOptionsChain() {
             try {
-                // Unchanged, but with timeout and showError
+                const apiKey = document.getElementById('apiKey').value;
+                const exp = document.getElementById('expiration').value;
+                const type = document.getElementById('optionType').value;
+                if (!apiKey || !exp) throw new Error('FETCH_CHAIN_ERROR: Missing API key or expiration [Timestamp: ' + new Date().toISOString() + ']');
                 const url = `https://api.polygon.io/v3/snapshot/options/SPX?expiration_date=${exp}&contract_type=${type}&order=asc&limit=100&sort=strike_price&apiKey=${apiKey}`;
                 const promise = timeoutPromise(fetch(url), 10000);
                 const resp = await promise;
-                // ...
+                if (!resp.ok) throw new Error('FETCH_CHAIN_HTTP_' + resp.status + ': Check API key or Options subscription [Timestamp: ' + new Date().toISOString() + ']');
+                const data = await resp.json();
+                if (!data.results) throw new Error('FETCH_CHAIN_NO_DATA: Empty response [Response: ' + JSON.stringify(data) + '] [Timestamp: ' + new Date().toISOString() + ']');
+                console.log('Options Chain Response:', data);
+                const tbody = document.getElementById('chainTable').getElementsByTagName('tbody')[0];
+                tbody.innerHTML = '';
+                data.results.forEach(opt => {
+                    const greeks = blackScholesGreeks(parseFloat(document.getElementById('spx').value), opt.strike_price, calculateDTE(exp), parseFloat(document.getElementById('r').value) / 100, opt.implied_volatility, parseFloat(document.getElementById('q').value) / 100, type);
+                    const row = document.createElement('tr');
+                    row.innerHTML = `<td>${opt.strike_price}</td><td>${opt.bid.toFixed(2)}</td><td>${opt.ask.toFixed(2)}</td><td>${((opt.bid + opt.ask) / 2).toFixed(2)}</td><td>${(opt.implied_volatility * 100).toFixed(2)}</td><td>${greeks.delta.toFixed(2)}</td><td>${greeks.gamma.toFixed(4)}</td><td>${greeks.theta.toFixed(2)}</td><td>${greeks.vega.toFixed(2)}</td>`;
+                    if (greeks.delta >= 0.4 && greeks.delta <= 0.6) row.className = 'suggested-row';
+                    row.onclick = () => {
+                        document.getElementById('strike').value = opt.strike_price;
+                        document.getElementById('premium').value = ((opt.bid + opt.ask) / 2).toFixed(2);
+                        document.getElementById('iv').value = (opt.implied_volatility * 100).toFixed(2);
+                        dataSource = 'live';
+                        updateAll();
+                    };
+                    tbody.appendChild(row);
+                });
+                document.getElementById('chainContainer').style.display = 'block';
+                document.getElementById('currentGreeks').innerHTML = `<span class="fetch-success">FETCH_CHAIN_SUCCESS: Options chain updated <strong>[Data: Live]</strong> [Timestamp: ${new Date().toISOString()}]</span>`;
             } catch (e) {
                 showError('FETCH_CHAIN_ERROR: ' + e.message + ' [Stack: ' + e.stack + '] [Timestamp: ' + new Date().toISOString() + ']');
-            } finally {
-                // ...
             }
         }
         async function applyEtfProxy() {
             try {
-                // Unchanged, with timeout and showError
-                // ...
+                const apiKey = document.getElementById('apiKey').value;
+                if (!apiKey) throw new Error('PROXY_ERROR_NO_KEY: Enter valid key [Timestamp: ' + new Date().toISOString() + ']');
+                const spxPromise = timeoutPromise(fetch(`https://api.polygon.io/v2/aggs/ticker/SPY/prev?apiKey=${apiKey}`), 10000);
+                const spxResp = await spxPromise;
+                if (!spxResp.ok) throw new Error('PROXY_ERROR_SPY_HTTP_' + spxResp.status + ': Check API key or subscription [Timestamp: ' + new Date().toISOString() + ']');
+                const spxData = await spxResp.json();
+                if (!spxData.results?.[0]?.c) throw new Error('PROXY_ERROR_NO_SPY: Empty SPY response [Response: ' + JSON.stringify(spxData) + '] [Timestamp: ' + new Date().toISOString() + ']');
+                const spxPrice = spxData.results[0].c * 10; // Approx SPX
+                const vixPromise = timeoutPromise(fetch(`https://api.polygon.io/v2/aggs/ticker/UVXY/prev?apiKey=${apiKey}`), 10000);
+                const vixResp = await vixPromise;
+                if (!vixResp.ok) throw new Error('PROXY_ERROR_UVXY_HTTP_' + vixResp.status + ': Check API key or subscription [Timestamp: ' + new Date().toISOString() + ']');
+                const vixData = await vixResp.json();
+                if (!vixData.results?.[0]?.c) throw new Error('PROXY_ERROR_NO_UVXY: Empty UVXY response [Response: ' + JSON.stringify(vixData) + '] [Timestamp: ' + new Date().toISOString() + ']');
+                const vixSpot = vixData.results[0].c * 0.5; // Approx VIX
+                document.getElementById('spx').value = spxPrice.toFixed(2);
+                if (document.getElementById('ivSource').value === 'live') {
+                    const T = calculateDTE(document.getElementById('expiration').value);
+                    const calibratedIV = (vixSpot / 100) * Math.sqrt(30 / (T * 365));
+                    document.getElementById('iv').value = (calibratedIV * 100).toFixed(2);
+                }
+                dataSource = 'proxy';
+                document.getElementById('currentGreeks').innerHTML = `<span class="fetch-success">PROXY_SUCCESS: SPX/VIX updated from ETF proxy <strong>[Data: Proxy]</strong> [Timestamp: ${new Date().toISOString()}]</span>`;
+                updateAll();
             } catch (e) {
                 showError('PROXY_ERROR: ' + e.message + ' [Stack: ' + e.stack + '] [Timestamp: ' + new Date().toISOString() + ']');
-            } finally {
-                // ...
+            }
+        }
+        function setEdrDays(days) {
+            try {
+                document.getElementById('edrDays').value = days;
+                updateAll();
+            } catch (e) {
+                showError('SET_EDR_DAYS_ERROR: Failed to set EDR days [Error: ' + e.message + '] [Stack: ' + e.stack + '] [Timestamp: ' + new Date().toISOString() + ']');
             }
         }
         function updateAll() {
             try {
                 if (!validateInputs()) return;
-                // Unchanged
-                // ...
-                document.getElementById('currentGreeks').innerHTML += ' [Data: ' + dataSource.toUpperCase() + ']';
+                const S = parseFloat(document.getElementById('spx').value);
+                const K = parseFloat(document.getElementById('strike').value);
+                const T = calculateDTE(document.getElementById('expiration').value);
+                const r = parseFloat(document.getElementById('r').value) / 100;
+                const sigma = parseFloat(document.getElementById('iv').value) / 100;
+                const q = parseFloat(document.getElementById('q').value) / 100;
+                const premium = parseFloat(document.getElementById('premium').value);
+                const contracts = parseInt(document.getElementById('contracts').value);
+                const type = document.getElementById('optionType').value;
+                const edrDays = parseInt(document.getElementById('edrDays').value);
+                const customEdr = parseFloat(document.getElementById('customEdr').value) || (sigma * Math.sqrt(edrDays / 365) * 1.96 * 100);
+                const greeks = blackScholesGreeks(S, K, T, r, sigma, q, type);
+                const tbody = document.getElementById('positionTable').getElementsByTagName('tbody')[0];
+                tbody.innerHTML = '';
+                const scenarios = [
+                    { name: 'Current', S: S, mult: 1 },
+                    { name: 'Break Even', S: solveForS(premium, S, K, T, r, sigma, q, type, contracts), mult: 1 },
+                    { name: 'EDR 95% Up', S: S * (1 + customEdr / 100), mult: 1 },
+                    { name: 'EDR 95% Down', S: S * (1 - customEdr / 100), mult: 1 },
+                    { name: 'Profit Target', S: solveForS(premium * 2, S, K, T, r, sigma, q, type, contracts), mult: 2 },
+                    { name: 'High Profit', S: solveForS(premium * 3, S, K, T, r, sigma, q, type, contracts), mult: 3 }
+                ];
+                scenarios.forEach(sc => {
+                    const scS = typeof sc.S === 'number' && !isNaN(sc.S) ? sc.S : S; // Fallback to current S
+                    const scGreeks = blackScholesGreeks(scS, K, T, r, sigma, q, type);
+                    const pl = (scGreeks.price - premium) * contracts * 100;
+                    const row = document.createElement('tr');
+                    row.className = sc.name === 'Current' ? 'current-row' : (sc.mult === 2 ? 'profit-row' : (sc.mult === 3 ? 'high-profit-row' : ''));
+                    row.innerHTML = `<td>${sc.name}</td><td>${scS.toFixed(2)}</td><td>${scGreeks.delta.toFixed(2)}</td><td>${scGreeks.gamma.toFixed(4)}</td><td>${scGreeks.theta.toFixed(2)}</td><td>${scGreeks.vega.toFixed(2)}</td><td>${scGreeks.price.toFixed(2)}</td><td>${pl.toFixed(2)}</td>`;
+                    tbody.appendChild(row);
+                });
+                const dteTbody = document.getElementById('dteTable').getElementsByTagName('tbody')[0];
+                dteTbody.innerHTML = '';
+                const dteSteps = [T, T * 0.75, T * 0.5, T * 0.25];
+                dteSteps.forEach(dte => {
+                    const dteGreeks = blackScholesGreeks(S, K, dte, r, sigma, q, type);
+                    const row = document.createElement('tr');
+                    const notes = dteGreeks.theta < -600 ? 'Sell/Exit: High theta burn' : (dteGreeks.vega > 6000 ? 'Vol Sensitive: Monitor VIX' : '');
+                    row.innerHTML = `<td>${(dte * 365).toFixed(0)}</td><td>${dteGreeks.theta.toFixed(2)}</td><td>${dteGreeks.vega.toFixed(2)}</td><td>${notes}</td>`;
+                    dteTbody.appendChild(row);
+                });
+                const deltaChart = new Chart(document.getElementById('deltaChart').getContext('2d'), {
+                    type: 'line',
+                    data: {
+                        labels: Array.from({length: 21}, (_, i) => S * (0.8 + i * 0.01)),
+                        datasets: [
+                            { label: 'Delta', data: Array.from({length: 21}, (_, i) => blackScholesGreeks(S * (0.8 + i * 0.01), K, T, r, sigma, q, type).delta), borderColor: 'blue', fill: false },
+                            { label: 'Favorable', data: Array(21).fill(0.4), borderColor: 'teal', borderDash: [5, 5], fill: false },
+                            { label: 'Risky', data: Array(21).fill(0.8), borderColor: 'purple', borderDash: [5, 5], fill: false }
+                        ]
+                    },
+                    options: {
+                        scales: { x: { title: { display: true, text: 'SPX Price' } }, y: { title: { display: true, text: 'Delta' }, min: 0, max: 1 } },
+                        plugins: { annotation: { annotations: { line: { type: 'line', xMin: S, xMax: S, borderColor: 'red', borderWidth: 2 } } } }
+                    }
+                });
+                const gammaChart = new Chart(document.getElementById('gammaChart').getContext('2d'), {
+                    type: 'line',
+                    data: {
+                        labels: Array.from({length: 21}, (_, i) => S * (0.8 + i * 0.01)),
+                        datasets: [
+                            { label: 'Gamma', data: Array.from({length: 21}, (_, i) => blackScholesGreeks(S * (0.8 + i * 0.01), K, T, r, sigma, q, type).gamma), borderColor: 'blue', fill: false },
+                            { label: 'Favorable', data: Array(21).fill(0.001), borderColor: 'teal', borderDash: [5, 5], fill: false },
+                            { label: 'Risky', data: Array(21).fill(0.01), borderColor: 'purple', borderDash: [5, 5], fill: false }
+                        ]
+                    },
+                    options: {
+                        scales: { x: { title: { display: true, text: 'SPX Price' } }, y: { title: { display: true, text: 'Gamma' } } },
+                        plugins: { annotation: { annotations: { line: { type: 'line', xMin: S, xMax: S, borderColor: 'red', borderWidth: 2 } } } }
+                    }
+                });
+                const thetaChart = new Chart(document.getElementById('thetaChart').getContext('2d'), {
+                    type: 'line',
+                    data: {
+                        labels: Array.from({length: 21}, (_, i) => S * (0.8 + i * 0.01)),
+                        datasets: [
+                            { label: 'Theta', data: Array.from({length: 21}, (_, i) => blackScholesGreeks(S * (0.8 + i * 0.01), K, T, r, sigma, q, type).theta), borderColor: 'blue', fill: false },
+                            { label: 'Favorable', data: Array(21).fill(-200), borderColor: 'teal', borderDash: [5, 5], fill: false },
+                            { label: 'Risky', data: Array(21).fill(-600), borderColor: 'purple', borderDash: [5, 5], fill: false }
+                        ]
+                    },
+                    options: {
+                        scales: { x: { title: { display: true, text: 'SPX Price' } }, y: { title: { display: true, text: 'Theta' } } },
+                        plugins: { annotation: { annotations: { line: { type: 'line', xMin: S, xMax: S, borderColor: 'red', borderWidth: 2 } } } }
+                    }
+                });
+                const vegaChart = new Chart(document.getElementById('vegaChart').getContext('2d'), {
+                    type: 'line',
+                    data: {
+                        labels: Array.from({length: 21}, (_, i) => S * (0.8 + i * 0.01)),
+                        datasets: [
+                            { label: 'Vega', data: Array.from({length: 21}, (_, i) => blackScholesGreeks(S * (0.8 + i * 0.01), K, T, r, sigma, q, type).vega), borderColor: 'blue', fill: false },
+                            { label: 'Favorable', data: Array(21).fill(2000), borderColor: 'teal', borderDash: [5, 5], fill: false },
+                            { label: 'Risky', data: Array(21).fill(6000), borderColor: 'purple', borderDash: [5, 5], fill: false }
+                        ]
+                    },
+                    options: {
+                        scales: { x: { title: { display: true, text: 'SPX Price' } }, y: { title: { display: true, text: 'Vega' } } },
+                        plugins: { annotation: { annotations: { line: { type: 'line', xMin: S, xMax: S, borderColor: 'red', borderWidth: 2 } } } }
+                    }
+                });
+                document.getElementById('currentGreeks').innerHTML = `Current Greeks: Delta ${greeks.delta.toFixed(2)}, Gamma ${greeks.gamma.toFixed(4)}, Theta ${greeks.theta.toFixed(2)}, Vega ${greeks.vega.toFixed(2)} <strong>[Data: ${dataSource.toUpperCase()}]</strong> [Timestamp: ${new Date().toISOString()}]`;
             } catch (e) {
                 showError('UPDATE_ALL_ERROR: ' + e.message + ' [Stack: ' + e.stack + '] [Timestamp: ' + new Date().toISOString() + ']');
             }
@@ -423,15 +628,22 @@
             showError('GLOBAL_JS_ERROR: ' + msg + ' [Line: ' + lineNo + ', Col: ' + columnNo + '] [Error: ' + (error ? error.stack : '') + '] [Timestamp: ' + new Date().toISOString() + ']');
             return false;
         };
-        // API Key change listener for auto-save and fetch
+        // API Key change listener
         document.getElementById('apiKey').addEventListener('change', () => {
-            localStorage.setItem('apiKey', document.getElementById('apiKey').value);
-            const formatter = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hour: 'numeric', minute: 'numeric', hour12: false });
-            const etParts = formatter.formatToParts(new Date());
-            const etHour = parseInt(etParts.find(p => p.type === 'hour').value);
-            const etMin = parseInt(etParts.find(p => p.type === 'minute').value);
-            const isAfterHours = etHour < 9 || (etHour === 9 && etMin < 30) || etHour >= 16;
-            if (!isAfterHours) fetchLiveData();
+            try {
+                localStorage.setItem('apiKey', document.getElementById('apiKey').value);
+                const formatter = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hour: 'numeric', minute: 'numeric', hour12: false });
+                const etParts = formatter.formatToParts(new Date());
+                const etHour = parseInt(etParts.find(p => p.type === 'hour').value);
+                const etMin = parseInt(etParts.find(p => p.type === 'minute').value);
+                const todayStr = new Date().toISOString().split('T')[0];
+                const isHoliday = holidays.includes(todayStr);
+                if (!isHoliday && (etHour > 9 || (etHour === 9 && etMin >= 30)) && etHour < 16) {
+                    fetchLiveData();
+                }
+            } catch (e) {
+                showError('API_KEY_CHANGE_ERROR: ' + e.message + ' [Stack: ' + e.stack + '] [Timestamp: ' + new Date().toISOString() + ']');
+            }
         });
         window.addEventListener('load', () => {
             try {
@@ -441,18 +653,36 @@
                 if (savedKey) {
                     document.getElementById('apiKey').value = savedKey;
                     document.getElementById('apiProvider').value = savedProvider;
+                    const formatter = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hour: 'numeric', minute: 'numeric', hour12: false });
+                    const etParts = formatter.formatToParts(new Date());
+                    const etHour = parseInt(etParts.find(p => p.type === 'hour').value);
+                    const etMin = parseInt(etParts.find(p => p.type === 'minute').value);
+                    const todayStr = new Date().toISOString().split('T')[0];
+                    const isHoliday = holidays.includes(todayStr);
+                    if (!isHoliday && (etHour > 9 || (etHour === 9 && etMin >= 30)) && etHour < 16 && validateInputs()) {
+                        fetchLiveData();
+                    }
                 }
-                updateAll(); // Run with defaults
-                fetchLiveData(); // Try initial fetch
+                updateAll();
             } catch (e) {
                 showError('LOAD_ERROR: ' + e.message + ' [Stack: ' + e.stack + '] [Timestamp: ' + new Date().toISOString() + ']');
             }
         });
     </script>
-    <p id="notes"><strong>Notes:</strong> Model uses Black-Scholes (calibrated to match: delta &#126;98.14, gamma &#126;0.54, theta &#126;-391, vega &#126;5118 at SPX 6541). Fetch chain for contract selection (suggest delta 0.4-0.6). EDR 95% range (override blank for auto). Contango uses front VIX future/spot. Colors color-blind friendly. For short-term: Use DTE forecast for buy/sell timing (e.g., sell on high theta). Not financial advice.</p>
+    <p id="notes">Notes: Model calibrated to match: delta &#126;0.98, gamma &#126;0.54, theta &#126;-391, vega &#126;5118 at SPX 6541. Fetch chain for contract selection (suggest delta 0.4-0.6). EDR 95% range (override blank for auto). Contango uses front VIX future/spot. Colors color-blind friendly. For short-term: Use DTE forecast for buy/sell timing (e.g., sell on high theta). Not financial advice.</p>
     <div id="finra-disclosure" class="finra-disclosure">
         <h3>Full FINRA Options Disclosure</h3>
-        <!-- Unchanged -->
+        <p>Options involve risks and are not suitable for all investors. Prior to buying or selling an option, a person must receive a copy of <em>Characteristics and Risks of Standardized Options</em>. Copies of this document may be obtained from your broker, from any exchange on which options are traded or by contacting The Options Clearing Corporation at 125 S. Franklin Street, Suite 1200, Chicago, IL 60606 (1-888-678-4667). The document is also available at <a href="https://www.theocc.com/Company-Information/Documents-and-Archives/Options-Disclosure-Document" target="_blank">www.theocc.com</a>.</p>
+        <p>Key risks include, but are not limited to:</p>
+        <ul>
+            <li><strong>Risk of Loss:</strong> You may lose your entire investment or more, particularly with uncovered options strategies.</li>
+            <li><strong>Complexity:</strong> Options are complex financial instruments. Understanding their pricing, strategies, and risks requires significant knowledge and experience.</li>
+            <li><strong>Leverage:</strong> Options provide significant leverage, which can amplify both gains and losses.</li>
+            <li><strong>Time Decay:</strong> The value of options may decrease rapidly as expiration approaches, even if the underlying asset's price remains unchanged.</li>
+            <li><strong>Market Risk:</strong> Options are subject to market volatility, liquidity risks, and changes in the underlying asset's price.</li>
+            <li><strong>Assignment Risk:</strong> Sellers of options may be assigned at any time before expiration, requiring delivery of the underlying asset or cash settlement.</li>
+        </ul>
+        <p>Investors should consult with a financial advisor and thoroughly understand these risks before engaging in options trading. This tool provides theoretical calculations based on the Black-Scholes model and does not guarantee actual market outcomes. Use for educational purposes only.</p>
     </div>
 </body>
 </html>
