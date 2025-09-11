@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SPX Mastery Long-Term Options Analyzer (Build 1, Version 19)</title>
+    <title>SPX Mastery Long-Term Options Analyzer (Build 1, Version 20)</title>
     <link rel="icon" href="https://storage.googleapis.com/msgsndr/DbcHU95N4uVVUJoOWctG/media/68c18e9983b98269408909db.png">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js" onload="console.log('CDN_SUCCESS_1: jsDelivr loaded')" onerror="console.log('CDN_ERROR_1: jsDelivr failed'); loadFallbackCDN(1)"></script>
     <script>
@@ -61,7 +61,8 @@
         .version { font-size: 12px; color: #666; text-align: center; margin-top: 20px; }
         .api-note { font-size: 12px; color: #666; text-align: center; margin: 5px 0; }
         .after-hours { color: orange; font-style: italic; text-align: center; margin: 5px 0; }
-        #tradingview_spx, #tradingview_vix { margin: 20px auto; width: 100%; height: 400px; }
+        .tradingview-container { display: flex; justify-content: space-around; flex-wrap: wrap; max-width: 800px; margin: 20px auto; }
+        #tradingview_spx, #tradingview_vix { width: 300px; height: 300px; }
     </style>
 </head>
 <body>
@@ -70,7 +71,7 @@
     <div class="disclaimer">
         <strong>Disclaimer:</strong> This tool is for educational purposes only and is not financial advice. Options trading involves significant risks, including the potential loss of your entire investment or more. Calculations are theoretical (Black-Scholes model) and may not reflect actual market conditions. The creator (spxmastery) is not liable for any financial losses or damages resulting from use of this tool. Consult a qualified financial advisor before trading options.
     </div>
-    <h1>SPX Mastery Long-Term Options Analyzer (Build 1, Version 19)</h1>
+    <h1>SPX Mastery Long-Term Options Analyzer (Build 1, Version 20)</h1>
     <div class="input-section">
         <h2>Input Parameters (Click Update to Recalculate)</h2>
         <div class="api-section">
@@ -115,6 +116,10 @@
                 <tbody></tbody>
             </table>
         </div>
+        <div class="tradingview-container">
+            <div id="tradingview_spx"></div>
+            <div id="tradingview_vix"></div>
+        </div>
     </div>
     <div class="chain-container" id="chainContainer" style="display: none;">
         <h3>Options Chain (Select Row for Strike/Premium/IV)</h3>
@@ -140,12 +145,37 @@
         <canvas id="vegaChart"></canvas>
         <p class="legend"><span class="teal">Favorable</span> | <span class="orange">Caution</span> | <span class="purple">Risky</span></p>
     </div>
-    <div id="tradingview_spx"></div>
-    <div id="tradingview_vix"></div>
     <script src="https://s3.tradingview.com/tv.js"></script>
     <script>
-        new TradingView.widget({ "container_id": "tradingview_spx", "autosize": true, "symbol": "US500", "interval": "D", "timezone": "America/New_York", "theme": "light", "style": "1", "locale": "en", "toolbar_bg": "#f1f3f6", "enable_publishing": false, "allow_symbol_change": true, "studies": ["STD;VIX"] });
-        new TradingView.widget({ "container_id": "tradingview_vix", "autosize": true, "symbol": "CBOE:VIX", "interval": "D", "timezone": "America/New_York", "theme": "light", "style": "1", "locale": "en", "toolbar_bg": "#f1f3f6", "enable_publishing": false, "allow_symbol_change": true });
+        new TradingView.widget({
+            "container_id": "tradingview_spx",
+            "width": 300,
+            "height": 300,
+            "symbol": "US500",
+            "interval": "D",
+            "timezone": "America/New_York",
+            "theme": "light",
+            "style": "1",
+            "locale": "en",
+            "toolbar_bg": "#f1f3f6",
+            "enable_publishing": false,
+            "allow_symbol_change": true,
+            "studies": ["STD;VIX"]
+        });
+        new TradingView.widget({
+            "container_id": "tradingview_vix",
+            "width": 300,
+            "height": 300,
+            "symbol": "CBOE:VIX",
+            "interval": "D",
+            "timezone": "America/New_York",
+            "theme": "light",
+            "style": "1",
+            "locale": "en",
+            "toolbar_bg": "#f1f3f6",
+            "enable_publishing": false,
+            "allow_symbol_change": true
+        });
     </script>
     <script>
         // Black-Scholes Functions
@@ -227,14 +257,16 @@
                 document.getElementById('afterHoursNote').style.display = isAfterHours ? 'block' : 'none';
                 let spxPrice, vixSpot;
                 if (provider === 'polygon') {
-                    const spxResp = await fetch(`https://api.polygon.io/v3/snapshot/indices?ticker=I:SPX&apiKey=${apiKey}`);
+                    const spxResp = await fetch(`https://api.polygon.io/v2/aggs/ticker/I:SPX/prev?apiKey=${apiKey}`);
                     const spxData = await spxResp.json();
-                    if (!spxData.results?.[0]) throw new Error('API_ERROR_NO_SPX: Empty SPX response');
-                    spxPrice = spxData.results[0].value || spxData.results[0].prev_close || spxData.results[0].last_quote?.p;
-                    const vixResp = await fetch(`https://api.polygon.io/v3/snapshot/indices?ticker=I:VIX&apiKey=${apiKey}`);
+                    if (!spxResp.ok) throw new Error(`API_ERROR_SPX_HTTP_${spxResp.status}: Check API key permissions or Indices subscription.`);
+                    if (!spxData.results?.[0]?.c) throw new Error('API_ERROR_NO_SPX: Empty SPX response');
+                    spxPrice = spxData.results[0].c; // Use prev.close
+                    const vixResp = await fetch(`https://api.polygon.io/v2/aggs/ticker/I:VIX/prev?apiKey=${apiKey}`);
                     const vixData = await vixResp.json();
-                    if (!vixData.results?.[0]) throw new Error('API_ERROR_NO_VIX: Empty VIX response');
-                    vixSpot = vixData.results[0].value || vixData.results[0].prev_close;
+                    if (!vixResp.ok) throw new Error(`API_ERROR_VIX_HTTP_${vixResp.status}: Check API key permissions or Indices subscription.`);
+                    if (!vixData.results?.[0]?.c) throw new Error('API_ERROR_NO_VIX: Empty VIX response');
+                    vixSpot = vixData.results[0].c; // Use prev.close
                     console.log('Polygon SPX:', spxData, 'VIX:', vixData);
                 } else if (provider === 'alpha') {
                     const spxUrl = `https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=^GSPC&apikey=${apiKey}`;
@@ -266,10 +298,12 @@
                 if (provider === 'polygon' && vixSpot && !isNaN(vixSpot)) {
                     const futRefResp = await fetch(`https://api.polygon.io/v3/reference/futures/contracts?underlying=VIX&expired=false&limit=1&sort=expiration_date&order=asc&apiKey=${apiKey}`);
                     const futRef = await futRefResp.json();
+                    if (!futRefResp.ok) throw new Error(`API_ERROR_FUTURES_HTTP_${futRefResp.status}: Check API key permissions.`);
                     const frontTicker = futRef.results?.[0]?.ticker;
                     if (frontTicker) {
                         const futResp = await fetch(`https://api.polygon.io/v3/snapshot/futures?ticker=${frontTicker}&apiKey=${apiKey}`);
                         const futData = await futResp.json();
+                        if (!futResp.ok) throw new Error(`API_ERROR_FUTURES_SNAPSHOT_HTTP_${futResp.status}: Check API key permissions.`);
                         const futurePrice = futData.results?.[0]?.value || futData.results?.[0]?.prev_close;
                         if (futurePrice) {
                             const ratio = futurePrice / vixSpot;
@@ -284,7 +318,7 @@
                 updateAll();
             } catch (e) {
                 console.log('API_FETCH_ERROR:', e.message, e.stack);
-                document.getElementById('currentGreeks').innerHTML = `<span class="error">API_ERROR: ${e.message}. Retry ${attempt}/${maxAttempts}. Check console (F12).</span>`;
+                document.getElementById('currentGreeks').innerHTML = `<span class="error">API_ERROR: ${e.message}. Retry ${attempt}/${maxAttempts}. Check API key permissions or Indices/Options subscription. See console (F12).</span>`;
                 if (attempt < maxAttempts) {
                     setTimeout(() => fetchLiveData(attempt + 1), 2000);
                 } else {
@@ -307,7 +341,7 @@
                 if (document.getElementById('apiProvider').value !== 'polygon') throw new Error('Chain fetch only for Polygon.');
                 const url = `https://api.polygon.io/v3/snapshot/options/SPX?expiration_date=${exp}&contract_type=${type}&order=asc&limit=100&sort=strike_price&apiKey=${apiKey}`;
                 const resp = await fetch(url);
-                if (!resp.ok) throw new Error(`API_ERROR_CHAIN: HTTP ${resp.status}`);
+                if (!resp.ok) throw new Error(`API_ERROR_CHAIN_HTTP_${resp.status}: Check API key permissions or Options subscription.`);
                 const data = await resp.json();
                 if (!data.results?.length) throw new Error('API_ERROR_NO_CHAIN: No options data for selected expiration');
                 const tableBody = document.getElementById('chainTable').querySelector('tbody');
@@ -329,7 +363,7 @@
                 document.getElementById('currentGreeks').innerHTML = '<span class="fetch-success">Options Chain Loaded.</span>';
             } catch (e) {
                 console.log('CHAIN_FETCH_ERROR:', e.message, e.stack);
-                document.getElementById('currentGreeks').innerHTML = `<span class="error">Chain Fetch Error: ${e.message}. Check expiration/API key/console (F12).</span>`;
+                document.getElementById('currentGreeks').innerHTML = `<span class="error">Chain Fetch Error: ${e.message}. Check expiration/API key permissions/console (F12).</span>`;
             } finally {
                 fetchBtn.disabled = false;
                 fetchBtn.innerText = 'Fetch Options Chain';
@@ -344,20 +378,22 @@
                 const provider = document.getElementById('apiProvider').value;
                 let spyUrl, uvxyUrl;
                 if (provider === 'polygon') {
-                    spyUrl = `https://api.polygon.io/v3/snapshot?ticker=SPY&apiKey=${apiKey}`;
-                    uvxyUrl = `https://api.polygon.io/v3/snapshot?ticker=UVXY&apiKey=${apiKey}`;
+                    spyUrl = `https://api.polygon.io/v2/aggs/ticker/SPY/prev?apiKey=${apiKey}`;
+                    uvxyUrl = `https://api.polygon.io/v2/aggs/ticker/UVXY/prev?apiKey=${apiKey}`;
                 } else {
                     throw new Error('Proxy only for Polygon');
                 }
                 const spyResp = await fetch(spyUrl);
+                if (!spyResp.ok) throw new Error(`API_ERROR_SPY_HTTP_${spyResp.status}: Check API key permissions.`);
                 const spyData = await spyResp.json();
-                if (!spyData.results?.[0]) throw new Error('API_ERROR_NO_SPY: Empty response');
-                const spxPrice = spyData.results[0].value * 10;
+                if (!spyData.results?.[0]?.c) throw new Error('API_ERROR_NO_SPY: Empty response');
+                const spxPrice = spyData.results[0].c * 10;
                 document.getElementById('spx').value = spxPrice.toFixed(2);
                 const uvxyResp = await fetch(uvxyUrl);
+                if (!uvxyResp.ok) throw new Error(`API_ERROR_UVXY_HTTP_${uvxyResp.status}: Check API key permissions.`);
                 const uvxyData = await uvxyResp.json();
-                if (!uvxyData.results?.[0]) throw new Error('API_ERROR_NO_UVXY: Empty response');
-                const ivApprox = uvxyData.results[0].implied_volatility * 1.5;
+                if (!uvxyData.results?.[0]?.c) throw new Error('API_ERROR_NO_UVXY: Empty response');
+                const ivApprox = uvxyData.results[0].c * 1.5; // Approximate IV
                 if (document.getElementById('ivSource').value === 'live') document.getElementById('iv').value = ivApprox.toFixed(2);
                 document.getElementById('currentGreeks').innerHTML = '<span class="fetch-success">ETF Proxy Applied: SPX/VIX Updated.</span>';
                 updateAll();
