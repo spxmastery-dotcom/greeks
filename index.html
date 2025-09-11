@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SPX Mastery Long-Term Options Analyzer (Build 1, Version 24)</title>
+    <title>SPX Mastery Long-Term Options Analyzer (Build 1, Version 25)</title>
     <link rel="icon" href="https://storage.googleapis.com/msgsndr/DbcHU95N4uVVUJoOWctG/media/68c18e9983b98269408909db.png">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js" onload="console.log('CDN_SUCCESS_1: jsDelivr loaded')" onerror="console.log('CDN_ERROR_1: jsDelivr failed'); loadFallbackCDN(1)"></script>
     <script>
@@ -71,7 +71,7 @@
     <div class="disclaimer">
         <strong>Disclaimer:</strong> This tool is for educational purposes only and is not financial advice. Options trading involves significant risks, including the potential loss of your entire investment or more. Calculations are theoretical (Black-Scholes model) and may not reflect actual market conditions. The creator (spxmastery) is not liable for any financial losses or damages resulting from use of this tool. Consult a qualified financial advisor before trading options.
     </div>
-    <h1>SPX Mastery Long-Term Options Analyzer (Build 1, Version 24)</h1>
+    <h1>SPX Mastery Long-Term Options Analyzer (Build 1, Version 25)</h1>
     <div class="input-section">
         <h2>Input Parameters (Click Update to Recalculate)</h2>
         <div class="api-section">
@@ -385,6 +385,7 @@
                     const calibratedIV = (vixSpot / 100) * Math.sqrt(30 / (T * 365));
                     document.getElementById('iv').value = (calibratedIV * 100).toFixed(2);
                 }
+                // Dynamic Calibration
                 const T = 79 / 365; // Default DTE
                 const fetchedGreeks = blackScholesGreeks(spxPrice, spxPrice, T, 0.038, (document.getElementById('iv').value / 100), 0.013, 'call');
                 const expectedDelta = 0.98;
@@ -396,23 +397,27 @@
                 document.getElementById('notes').innerText = `Notes: Model calibrated to match: delta ~${fetchedGreeks.delta.toFixed(2)}, gamma ~${fetchedGreeks.gamma.toFixed(2)}, theta ~${fetchedGreeks.theta.toFixed(0)}, vega ~${fetchedGreeks.vega.toFixed(0)} at SPX ${spxPrice.toFixed(0)}${driftNote}. Fetch chain for contract selection (suggest delta 0.4-0.6). EDR 95% range (override blank for auto). Contango uses front VIX future/spot. Colors color-blind friendly. For short-term: Use DTE forecast for buy/sell timing (e.g., sell on high theta). Not financial advice.`;
                 let contangoStatus = 'Contango Unknown';
                 if (provider === 'polygon' && vixSpot && !isNaN(vixSpot) && vixSpot > 0) {
-                    const futRefPromise = timeoutPromise(fetch(`https://api.polygon.io/v3/reference/futures/contracts?underlying=VIX&expired=false&limit=1&sort=expiration_date&order=asc&apiKey=${apiKey}`), 10000);
-                    const futRefResp = await futRefPromise;
-                    if (!futRefResp.ok) throw new Error('API_ERROR_FUTURES_HTTP_' + futRefResp.status + ': Check API key permissions [Timestamp: ' + new Date().toISOString() + ']');
-                    const futRef = await futRefResp.json();
-                    const frontTicker = futRef.results?.[0]?.ticker;
-                    if (frontTicker) {
-                        const futPromise = timeoutPromise(fetch(`https://api.polygon.io/v3/snapshot/futures?ticker=${frontTicker}&apiKey=${apiKey}`), 10000);
+                    const monthCodes = 'FGHJKMNQUVXZ';
+                    const m = new Date().getMonth();
+                    const y = new Date().getFullYear() % 10;
+                    const frontTicker = `X:VX${monthCodes[m]}${y}`;
+                    const futPromise = timeoutPromise(fetch(`https://api.polygon.io/v2/aggs/ticker/${frontTicker}/prev?apiKey=${apiKey}`), 10000);
+                    try {
                         const futResp = await futPromise;
-                        if (!futResp.ok) throw new Error('API_ERROR_FUTURES_SNAPSHOT_HTTP_' + futResp.status + ': Check API key permissions [Timestamp: ' + new Date().toISOString() + ']');
+                        if (!futResp.ok) throw new Error('FUTURES_404: Check tier or ticker [Suggest add Futures add-on] [Timestamp: ' + new Date().toISOString() + ']');
                         const futData = await futResp.json();
-                        const futurePrice = futData.results?.[0]?.value || futData.results?.[0]?.prev_close;
+                        const futurePrice = futData.results?.[0]?.c;
                         if (futurePrice && futurePrice > 0) {
                             const ratio = futurePrice / vixSpot;
                             if (ratio > 1.02) contangoStatus = `<span class="contango">Contango (${ratio.toFixed(2)}): Buy/Hold Favorable for Long-Term</span>`;
                             else if (ratio < 0.98) contangoStatus = `<span class="backwardation">Backwardation (${ratio.toFixed(2)}): Vol Spike Risk - Short-Term/Cash Out</span>`;
                             else contangoStatus = `<span class="flat">Flat (${ratio.toFixed(2)}): Neutral Market</span>`;
+                        } else {
+                            contangoStatus = `<span class="flat">Flat (Fallback: 1): Neutral Market</span>`;
                         }
+                    } catch (e) {
+                        showError('FUTURES_ERROR: ' + e.message + ' [Stack: ' + e.stack + '] [Timestamp: ' + new Date().toISOString() + ']');
+                        contangoStatus = `<span class="flat">Flat (Fallback: 1): Neutral Market</span>`;
                     }
                 }
                 document.getElementById('contangoStatus').innerHTML = contangoStatus;
@@ -457,27 +462,28 @@
                 const resp = await promise;
                 if (!resp.ok) throw new Error('FETCH_CHAIN_HTTP_' + resp.status + ': Check API key or Options subscription [Timestamp: ' + new Date().toISOString() + ']');
                 const data = await resp.json();
-                if (!data.results?.length) throw new Error('CHAIN_EMPTY: No options data - check expiration/symbol [Response: ' + JSON.stringify(data) + '] [Timestamp: ' + new Date().toISOString() + ']');
+                if (!data.results?.length) {
+                    showError('CHAIN_EMPTY: No options data - check expiration/symbol [Response: ' + JSON.stringify(data) + '] [Timestamp: ' + new Date().toISOString() + ']');
+                    return;
+                }
                 console.log('Options Chain Response:', data);
                 const tbody = document.getElementById('chainTable').getElementsByTagName('tbody')[0];
                 tbody.innerHTML = '';
                 data.results.forEach(opt => {
-                    if (!opt?.strike_price || !opt?.bid || !opt?.ask || !opt?.implied_volatility) {
-                        console.warn('Invalid option data:', opt);
-                        return;
-                    }
-                    const greeks = blackScholesGreeks(parseFloat(document.getElementById('spx').value), opt.strike_price, calculateDTE(exp), parseFloat(document.getElementById('r').value) / 100, opt.implied_volatility, parseFloat(document.getElementById('q').value) / 100, type);
+                    const contract = opt.details || opt; // Guard for structure
+                    if (!contract) return;
+                    const greeks = blackScholesGreeks(parseFloat(document.getElementById('spx').value), contract.strike_price, calculateDTE(exp), parseFloat(document.getElementById('r').value) / 100, contract.implied_volatility, parseFloat(document.getElementById('q').value) / 100, type);
                     if (!greeks || isNaN(greeks.delta)) {
-                        console.warn('Invalid greeks for strike:', opt.strike_price);
+                        console.warn('Invalid greeks for strike:', contract.strike_price);
                         return;
                     }
                     const row = document.createElement('tr');
-                    row.innerHTML = `<td>${opt.strike_price.toFixed(2)}</td><td>${opt.bid.toFixed(2)}</td><td>${opt.ask.toFixed(2)}</td><td>${((opt.bid + opt.ask) / 2).toFixed(2)}</td><td>${(opt.implied_volatility * 100).toFixed(2)}</td><td>${greeks.delta.toFixed(2)}</td><td>${greeks.gamma.toFixed(4)}</td><td>${greeks.theta.toFixed(2)}</td><td>${greeks.vega.toFixed(2)}</td>`;
+                    row.innerHTML = `<td>${contract.strike_price || 'N/A'}</td><td>${contract.bid || 'N/A'}</td><td>${contract.ask || 'N/A'}</td><td>${((contract.bid + contract.ask) / 2) || 'N/A'}</td><td>${(contract.implied_volatility * 100) || 'N/A'}</td><td>${greeks.delta.toFixed(2)}</td><td>${greeks.gamma.toFixed(4)}</td><td>${greeks.theta.toFixed(2)}</td><td>${greeks.vega.toFixed(2)}</td>`;
                     if (greeks.delta >= 0.4 && greeks.delta <= 0.6) row.className = 'suggested-row';
                     row.onclick = () => {
-                        document.getElementById('strike').value = opt.strike_price;
-                        document.getElementById('premium').value = ((opt.bid + opt.ask) / 2).toFixed(2);
-                        document.getElementById('iv').value = (opt.implied_volatility * 100).toFixed(2);
+                        document.getElementById('strike').value = contract.strike_price;
+                        document.getElementById('premium').value = ((contract.bid + contract.ask) / 2).toFixed(2);
+                        document.getElementById('iv').value = (contract.implied_volatility * 100).toFixed(2);
                         dataSource = 'live';
                         updateAll();
                     };
@@ -490,17 +496,6 @@
             }
         }
         async function applyEtfProxy() {
-            const formatter = new Intl.DateTimeFormat('en-US', { hour: 'numeric', minute: 'numeric', timeZone: 'America/New_York', hour12: false });
-            const etParts = formatter.formatToParts(new Date());
-            const etHour = parseInt(etParts.find(p => p.type === 'hour').value);
-            const etMin = parseInt(etParts.find(p => p.type === 'minute').value);
-            const todayStr = new Date().toISOString().split('T')[0];
-            const isHoliday = holidays.includes(todayStr);
-            const isAfterHours = isHoliday || etHour < 9 || (etHour === 9 && etMin < 30) || etHour >= 16;
-            if (!isAfterHours && dataSource === 'live') {
-                showError('PROXY_SKIPPED: Live data available, proxy not applied [Timestamp: ' + new Date().toISOString() + ']');
-                return;
-            }
             try {
                 const apiKey = document.getElementById('apiKey').value;
                 if (!apiKey) throw new Error('PROXY_ERROR_NO_KEY: Enter valid key [Timestamp: ' + new Date().toISOString() + ']');
@@ -509,13 +504,13 @@
                 if (!spxResp.ok) throw new Error('PROXY_ERROR_SPY_HTTP_' + spxResp.status + ': Check API key or subscription [Timestamp: ' + new Date().toISOString() + ']');
                 const spxData = await spxResp.json();
                 if (!spxData.results?.[0]?.c) throw new Error('PROXY_ERROR_NO_SPY: Empty SPY response [Response: ' + JSON.stringify(spxData) + '] [Timestamp: ' + new Date().toISOString() + ']');
-                const spxPrice = spxData.results[0].c * 10;
+                const spxPrice = spxData.results[0].c * 10; // Approx SPX
                 const vixPromise = timeoutPromise(fetch(`https://api.polygon.io/v2/aggs/ticker/UVXY/prev?apiKey=${apiKey}`), 10000);
                 const vixResp = await vixPromise;
                 if (!vixResp.ok) throw new Error('PROXY_ERROR_UVXY_HTTP_' + vixResp.status + ': Check API key or subscription [Timestamp: ' + new Date().toISOString() + ']');
                 const vixData = await vixResp.json();
                 if (!vixData.results?.[0]?.c) throw new Error('PROXY_ERROR_NO_UVXY: Empty UVXY response [Response: ' + JSON.stringify(vixData) + '] [Timestamp: ' + new Date().toISOString() + ']');
-                const vixSpot = vixData.results[0].c * 0.5;
+                const vixSpot = vixData.results[0].c * 0.5; // Approx VIX
                 document.getElementById('spx').value = spxPrice.toFixed(2);
                 if (document.getElementById('ivSource').value === 'live') {
                     const T = calculateDTE(document.getElementById('expiration').value);
@@ -540,71 +535,72 @@
         function updateAll() {
             try {
                 if (!validateInputs()) return;
-                const S = parseFloat(document.getElementById('spx').value);
-                const K = parseFloat(document.getElementById('strike').value);
+                let spxPrice = parseFloat(document.getElementById('spx').value);
+                let sigma = parseFloat(document.getElementById('iv').value) / 100;
+                const K = parseFloat(document.getElementById('strike').value) || spxPrice;
                 const T = calculateDTE(document.getElementById('expiration').value);
                 if (T <= 0.0001) {
                     showError('T_ZERO: Expiration date has passed or invalid [Timestamp: ' + new Date().toISOString() + ']');
                     return;
                 }
                 const r = parseFloat(document.getElementById('r').value) / 100;
-                const sigma = parseFloat(document.getElementById('iv').value) / 100;
                 const q = parseFloat(document.getElementById('q').value) / 100;
                 const premium = parseFloat(document.getElementById('premium').value);
                 const contracts = parseInt(document.getElementById('contracts').value);
                 const type = document.getElementById('optionType').value;
                 const edrDays = parseInt(document.getElementById('edrDays').value);
                 const customEdr = parseFloat(document.getElementById('customEdr').value) || (sigma * Math.sqrt(edrDays / 365) * 1.96 * 100);
-                const greeks = blackScholesGreeks(S, K, T, r, sigma, q, type);
-                const expectedDelta = type === 'call' ? 0.5 : -0.5; // ATM delta for call/put
-                let driftNote = Math.abs(greeks.delta - expectedDelta) > 0.05 ? ' (Drift detected - recalibrating)' : '';
-                document.getElementById('currentGreeks').innerHTML = `Current Greeks: Delta ${greeks.delta.toFixed(2)}, Gamma ${greeks.gamma.toFixed(4)}, Theta ${greeks.theta.toFixed(2)}, Vega ${greeks.vega.toFixed(2)} <strong>[Data: ${dataSource.toUpperCase()}]</strong>${driftNote} [Timestamp: ${new Date().toISOString()}]`;
+                const greeks = blackScholesGreeks(spxPrice, K, T, r, sigma, q, type);
+                const totalDelta = greeks.delta * contracts;
+                const totalGamma = greeks.gamma * contracts;
+                const totalTheta = greeks.theta * contracts;
+                const totalVega = greeks.vega * contracts;
                 const tbody = document.getElementById('positionTable').getElementsByTagName('tbody')[0];
                 tbody.innerHTML = '';
                 const scenarios = [
-                    { name: 'Current', S: S, mult: 1 },
-                    { name: 'Break Even', S: solveForS(premium, S, K, T, r, sigma, q, type, contracts), mult: 1 },
-                    { name: 'EDR 95% Up', S: S * (1 + customEdr / 100), mult: 1 },
-                    { name: 'EDR 95% Down', S: S * (1 - customEdr / 100), mult: 1 },
-                    { name: 'Profit Target', S: solveForS(premium * 2, S, K, T, r, sigma, q, type, contracts), mult: 2 },
-                    { name: 'High Profit', S: solveForS(premium * 3, S, K, T, r, sigma, q, type, contracts), mult: 3 }
+                    { name: 'Current', S: spxPrice, mult: 1 },
+                    { name: 'Break Even', S: solveForS(premium, spxPrice, K, T, r, sigma, q, type, contracts), mult: 1 },
+                    { name: 'EDR 95% Up', S: spxPrice * (1 + customEdr / 100), mult: 1 },
+                    { name: 'EDR 95% Down', S: spxPrice * (1 - customEdr / 100), mult: 1 },
+                    { name: 'Profit Target', S: solveForS(premium * 2, spxPrice, K, T, r, sigma, q, type, contracts), mult: 2 },
+                    { name: 'High Profit', S: solveForS(premium * 3, spxPrice, K, T, r, sigma, q, type, contracts), mult: 3 }
                 ];
                 scenarios.forEach(sc => {
-                    const scS = typeof sc.S === 'number' && !isNaN(sc.S) ? sc.S : S;
+                    const scS = typeof sc.S === 'number' && !isNaN(sc.S) ? sc.S : spxPrice;
                     const scGreeks = blackScholesGreeks(scS, K, T, r, sigma, q, type);
                     const pl = (scGreeks.price - premium) * contracts * 100;
                     const row = document.createElement('tr');
                     row.className = sc.name === 'Current' ? 'current-row' : (sc.mult === 2 ? 'profit-row' : (sc.mult === 3 ? 'high-profit-row' : ''));
-                    row.innerHTML = `<td>${sc.name}</td><td>${scS.toFixed(2)}</td><td>${scGreeks.delta.toFixed(2)}</td><td>${scGreeks.gamma.toFixed(4)}</td><td>${scGreeks.theta.toFixed(2)}</td><td>${scGreeks.vega.toFixed(2)}</td><td>${scGreeks.price.toFixed(2)}</td><td>${pl.toFixed(2)}</td>`;
+                    row.innerHTML = `<td>${sc.name}</td><td>${scS.toFixed(2)}</td><td>${(scGreeks.delta * contracts).toFixed(2)}</td><td>${(scGreeks.gamma * contracts).toFixed(4)}</td><td>${(scGreeks.theta * contracts).toFixed(2)}</td><td>${(scGreeks.vega * contracts).toFixed(2)}</td><td>${scGreeks.price.toFixed(2)}</td><td>${pl.toFixed(2)}</td>`;
                     tbody.appendChild(row);
                 });
                 const dteTbody = document.getElementById('dteTable').getElementsByTagName('tbody')[0];
                 dteTbody.innerHTML = '';
                 const dteSteps = [T, T * 0.75, T * 0.5, T * 0.25];
                 dteSteps.forEach(dte => {
-                    const dteGreeks = blackScholesGreeks(S, K, dte, r, sigma, q, type);
+                    const dteGreeks = blackScholesGreeks(spxPrice, K, dte, r, sigma, q, type);
                     const row = document.createElement('tr');
-                    const notes = dteGreeks.theta < -600 ? 'Sell/Exit: High theta burn' : (dteGreeks.vega > 6000 ? 'Vol Sensitive: Monitor VIX' : '');
-                    row.innerHTML = `<td>${(dte * 365).toFixed(0)}</td><td>${dteGreeks.theta.toFixed(2)}</td><td>${dteGreeks.vega.toFixed(2)}</td><td>${notes}</td>`;
+                    const notes = dteGreeks.theta * contracts < -600 ? 'Sell/Exit: High theta burn' : (dteGreeks.vega * contracts > 6000 ? 'Vol Sensitive: Monitor VIX' : '');
+                    row.innerHTML = `<td>${(dte * 365).toFixed(0)}</td><td>${(dteGreeks.theta * contracts).toFixed(2)}</td><td>${(dteGreeks.vega * contracts).toFixed(2)}</td><td>${notes}</td>`;
                     dteTbody.appendChild(row);
                 });
-                const spxRange = Array.from({length: 21}, (_, i) => Math.max(1, S * (0.8 + i * 0.01)));
-                const deltas = Array.from({length: 21}, (_, i) => blackScholesGreeks(spxRange[i], K, T, r, sigma, q, type).delta);
-                const gammas = Array.from({length: 21}, (_, i) => blackScholesGreeks(spxRange[i], K, T, r, sigma, q, type).gamma);
-                const thetas = Array.from({length: 21}, (_, i) => blackScholesGreeks(spxRange[i], K, T, r, sigma, q, type).theta);
-                const vegas = Array.from({length: 21}, (_, i) => blackScholesGreeks(spxRange[i], K, T, r, sigma, q, type).vega);
                 if (charts.delta) charts.delta.destroy();
                 if (charts.gamma) charts.gamma.destroy();
                 if (charts.theta) charts.theta.destroy();
                 if (charts.vega) charts.vega.destroy();
+                const spxRange = Array.from({length: 21}, (_, i) => Math.max(1, spxPrice * (0.8 + i * 0.01)));
+                const deltas = Array.from({length: 21}, (_, i) => blackScholesGreeks(spxRange[i], K, T, r, sigma, q, type).delta);
+                const gammas = Array.from({length: 21}, (_, i) => blackScholesGreeks(spxRange[i], K, T, r, sigma, q, type).gamma);
+                const thetas = Array.from({length: 21}, (_, i) => blackScholesGreeks(spxRange[i], K, T, r, sigma, q, type).theta);
+                const vegas = Array.from({length: 21}, (_, i) => blackScholesGreeks(spxRange[i], K, T, r, sigma, q, type).vega);
                 charts.delta = new Chart(document.getElementById('deltaChart').getContext('2d'), {
                     type: 'line',
                     data: {
                         labels: spxRange,
                         datasets: [
                             { label: 'Delta', data: deltas, borderColor: 'blue', fill: false },
-                            { label: 'Favorable', data: Array(21).fill(0.4), borderColor: 'teal', borderDash: [5, 5], fill: false },
-                            { label: 'Risky', data: Array(21).fill(0.8), borderColor: 'purple', borderDash: [5, 5], fill: false }
+                            { label: 'Teal: Favorable (0.4)', data: Array(spxRange.length).fill(0.4), borderColor: 'teal', borderDash: [5, 5], fill: false },
+                            { label: 'Purple: Warning (0.6)', data: Array(spxRange.length).fill(0.6), borderColor: 'purple', borderDash: [5, 5], fill: false }
                         ]
                     },
                     options: {
@@ -617,7 +613,7 @@
                                 beginAtZero: false 
                             }
                         },
-                        plugins: { annotation: { annotations: { line: { type: 'line', xMin: S, xMax: S, borderColor: 'red', borderWidth: 2 } } } }
+                        plugins: { annotation: { annotations: { line: { type: 'line', xMin: spxPrice, xMax: spxPrice, borderColor: 'red', borderWidth: 2 } } } }
                     }
                 });
                 charts.gamma = new Chart(document.getElementById('gammaChart').getContext('2d'), {
@@ -626,8 +622,8 @@
                         labels: spxRange,
                         datasets: [
                             { label: 'Gamma', data: gammas, borderColor: 'blue', fill: false },
-                            { label: 'Favorable', data: Array(21).fill(0.001), borderColor: 'teal', borderDash: [5, 5], fill: false },
-                            { label: 'Risky', data: Array(21).fill(0.01), borderColor: 'purple', borderDash: [5, 5], fill: false }
+                            { label: 'Teal: Favorable (0.0005)', data: Array(spxRange.length).fill(0.0005), borderColor: 'teal', borderDash: [5, 5], fill: false },
+                            { label: 'Purple: Warning (0.001)', data: Array(spxRange.length).fill(0.001), borderColor: 'purple', borderDash: [5, 5], fill: false }
                         ]
                     },
                     options: {
@@ -640,7 +636,7 @@
                                 beginAtZero: false 
                             }
                         },
-                        plugins: { annotation: { annotations: { line: { type: 'line', xMin: S, xMax: S, borderColor: 'red', borderWidth: 2 } } } }
+                        plugins: { annotation: { annotations: { line: { type: 'line', xMin: spxPrice, xMax: spxPrice, borderColor: 'red', borderWidth: 2 } } } }
                     }
                 });
                 charts.theta = new Chart(document.getElementById('thetaChart').getContext('2d'), {
@@ -649,8 +645,8 @@
                         labels: spxRange,
                         datasets: [
                             { label: 'Theta', data: thetas, borderColor: 'blue', fill: false },
-                            { label: 'Favorable', data: Array(21).fill(-200), borderColor: 'teal', borderDash: [5, 5], fill: false },
-                            { label: 'Risky', data: Array(21).fill(-600), borderColor: 'purple', borderDash: [5, 5], fill: false }
+                            { label: 'Teal: Favorable (-1)', data: Array(spxRange.length).fill(-1), borderColor: 'teal', borderDash: [5, 5], fill: false },
+                            { label: 'Purple: Warning (-2)', data: Array(spxRange.length).fill(-2), borderColor: 'purple', borderDash: [5, 5], fill: false }
                         ]
                     },
                     options: {
@@ -663,7 +659,7 @@
                                 beginAtZero: false 
                             }
                         },
-                        plugins: { annotation: { annotations: { line: { type: 'line', xMin: S, xMax: S, borderColor: 'red', borderWidth: 2 } } } }
+                        plugins: { annotation: { annotations: { line: { type: 'line', xMin: spxPrice, xMax: spxPrice, borderColor: 'red', borderWidth: 2 } } } }
                     }
                 });
                 charts.vega = new Chart(document.getElementById('vegaChart').getContext('2d'), {
@@ -672,8 +668,8 @@
                         labels: spxRange,
                         datasets: [
                             { label: 'Vega', data: vegas, borderColor: 'blue', fill: false },
-                            { label: 'Favorable', data: Array(21).fill(2000), borderColor: 'teal', borderDash: [5, 5], fill: false },
-                            { label: 'Risky', data: Array(21).fill(6000), borderColor: 'purple', borderDash: [5, 5], fill: false }
+                            { label: 'Teal: Favorable (4)', data: Array(spxRange.length).fill(4), borderColor: 'teal', borderDash: [5, 5], fill: false },
+                            { label: 'Purple: Warning (8)', data: Array(spxRange.length).fill(8), borderColor: 'purple', borderDash: [5, 5], fill: false }
                         ]
                     },
                     options: {
@@ -686,7 +682,7 @@
                                 beginAtZero: false 
                             }
                         },
-                        plugins: { annotation: { annotations: { line: { type: 'line', xMin: S, xMax: S, borderColor: 'red', borderWidth: 2 } } } }
+                        plugins: { annotation: { annotations: { line: { type: 'line', xMin: spxPrice, xMax: spxPrice, borderColor: 'red', borderWidth: 2 } } } }
                     }
                 });
             } catch (e) {
