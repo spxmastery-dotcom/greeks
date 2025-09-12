@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SPX Mastery Long-Term Options Analyzer (Build 1, Version 28)</title>
+    <title>SPX Mastery Long-Term Options Analyzer (Build 1, Version 29)</title>
     <link rel="icon" href="https://storage.googleapis.com/msgsndr/DbcHU95N4uVVUJoOWctG/media/68c18e9983b98269408909db.png">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js" onload="console.log('CDN_SUCCESS_1: jsDelivr loaded')" onerror="console.log('CDN_ERROR_1: jsDelivr failed'); loadFallbackCDN(1)"></script>
     <script>
@@ -64,11 +64,7 @@
         .tradingview-container { display: flex; justify-content: space-around; flex-wrap: wrap; max-width: 800px; margin: 20px auto; }
         #tradingview_spx, #tradingview_vix { width: 300px; height: 300px; }
         .tooltip { position: relative; display: inline-block; }
-        .tooltip .tooltiptext { 
-            visibility: hidden; width: 200px; background-color: #555; color: #fff; text-align: center; 
-            border-radius: 6px; padding: 5px; position: absolute; z-index: 1; bottom: 125%; 
-            left: 50%; margin-left: -100px; opacity: 0; transition: opacity 0.3s; 
-        }
+        .tooltip .tooltiptext { visibility: hidden; width: 200px; background-color: #555; color: #fff; text-align: center; border-radius: 6px; padding: 5px; position: absolute; z-index: 1; bottom: 125%; left: 50%; margin-left: -100px; opacity: 0; transition: opacity 0.3s; }
         .tooltip:hover .tooltiptext { visibility: visible; opacity: 1; }
     </style>
 </head>
@@ -91,6 +87,7 @@
             <button id="fetchLiveBtn" onclick="fetchLiveData()" title="Fetch live SPX/VIX data">Fetch Live Data</button>
             <button id="fetchChainBtn" onclick="fetchOptionsChain()" title="Fetch options chain for selected expiration">Fetch Options Chain</button>
             <button id="testApiBtn" onclick="testApi()" title="Test API key connectivity">Test API</button>
+            <button id="regenKey" onclick="alert('Go to Polygon dashboard > API Keys > Create New')" title="Regenerate Polygon API key">Regenerate Key</button>
             <button id="refreshBtn" onclick="toggleRefresh()" title="Toggle auto-refresh every 60s">Auto-Refresh: Off</button>
             <p class="api-note">Polygon tier: Indices/Options. Use for live SPX/VIX/chain. After-hours: Shows last close.</p>
         </div>
@@ -152,13 +149,9 @@
     <div class="chart-container">
         <h2>Greeks Charts (Blue: Value, Teal: Good Threshold, Purple: Warning Threshold, Vertical: Current SPX)</h2>
         <div id="chartError" class="error" style="display: none;"></div>
-        <h3>Delta</h3>
         <canvas id="deltaChart"></canvas>
-        <h3>Gamma</h3>
         <canvas id="gammaChart"></canvas>
-        <h3>Theta</h3>
         <canvas id="thetaChart"></canvas>
-        <h3>Vega</h3>
         <canvas id="vegaChart"></canvas>
         <p class="legend"><span class="teal">Favorable</span> | <span class="orange">Caution</span> | <span class="purple">Risky</span></p>
     </div>
@@ -196,10 +189,10 @@
     </script>
     <script>
         console.log('SCRIPT_PARSED: Ready [Timestamp: ' + new Date().toISOString() + ']');
-        let dataSource = 'live';
-        let charts = {};
+        let dataSource = 'live'; // Track live or manual
+        let charts = {}; // Store Chart.js instances
         let interval;
-        const holidays = ['2025-09-01', '2025-11-27', '2025-12-25'];
+        const holidays = ['2025-09-01', '2025-11-27', '2025-12-25']; // Example holidays
         function normCDF(x) {
             try {
                 if (typeof x !== 'number' || isNaN(x)) throw new Error('Invalid input: x must be a number');
@@ -328,6 +321,11 @@
         }
         function toggleRefresh() {
             const refreshBtn = document.getElementById('refreshBtn');
+            const apiKey = document.getElementById('apiKey').value;
+            if (!apiKey) {
+                showError('NO_KEY: Enter key for refresh [Timestamp: ' + new Date().toISOString() + ']');
+                return;
+            }
             if (interval) {
                 clearInterval(interval);
                 interval = null;
@@ -358,19 +356,26 @@
                 const isHoliday = holidays.includes(todayStr);
                 const isAfterHours = isHoliday || etHour < 9 || (etHour === 9 && etMin < 30) || etHour >= 16;
                 document.getElementById('afterHoursNote').style.display = isAfterHours ? 'block' : 'none';
-                document.getElementById('afterHoursNote').innerText = isAfterHours ? (isHoliday ? 'Market Closed (Holiday): Prev Close [ET Time: ' + etHour + ':' + etMin + ']' : 'After-Hours: Prev Close [ET Time: ' + etHour + ':' + etMin + ']') : 'Market Open [ET Time: ' + etHour + ':' + etMin + ']';
+                document.getElementById('afterHoursNote').innerText = isAfterHours ? (isHoliday ? 'Market Closed (Holiday): Data is last close [ET Time: ' + etHour + ':' + etMin + ']' : 'After-Hours: Data is last close (4:00 PM EDT) [ET Time: ' + etHour + ':' + etMin + ']') : 'Market Open [ET Time: ' + etHour + ':' + etMin + ']';
                 let spxPrice, vixSpot, atmIV;
                 if (provider === 'polygon') {
                     const spxResp = await timeoutPromise(fetch(`https://api.polygon.io/v3/snapshot/indices?ticker=I:SPX&apiKey=${apiKey}`), 10000);
-                    if (!spxResp.ok) throw new Error('API_ERROR_SPX_HTTP_' + spxResp.status + ': Check API key permissions or Indices subscription [Timestamp: ' + new Date().toISOString() + ']');
+                    if (!spxResp.ok) {
+                        if (spxResp.status === 401) throw new Error('401: Invalid key/tier—regenerate or check Indices/Options subscription [See dashboard]');
+                        throw new Error('API_ERROR_SPX_HTTP_' + spxResp.status + ': Check API key permissions or Indices subscription [Timestamp: ' + new Date().toISOString() + ']');
+                    }
                     const spxData = await spxResp.json();
                     if (!spxData.results?.[0]) throw new Error('API_ERROR_NO_SPX: Empty SPX response [Response: ' + JSON.stringify(spxData) + '] [Timestamp: ' + new Date().toISOString() + ']');
                     spxPrice = isAfterHours ? spxData.results[0].prev_close : spxData.results[0].value;
                     const vixResp = await timeoutPromise(fetch(`https://api.polygon.io/v3/snapshot/indices?ticker=I:VIX&apiKey=${apiKey}`), 10000);
-                    if (!vixResp.ok) throw new Error('API_ERROR_VIX_HTTP_' + vixResp.status + ': Check API key permissions or Indices subscription [Timestamp: ' + new Date().toISOString() + ']');
+                    if (!vixResp.ok) {
+                        if (vixResp.status === 401) throw new Error('401: Invalid key/tier—regenerate or check Indices/Options subscription [See dashboard]');
+                        throw new Error('API_ERROR_VIX_HTTP_' + vixResp.status + ': Check API key permissions or Indices subscription [Timestamp: ' + new Date().toISOString() + ']');
+                    }
                     const vixData = await vixResp.json();
                     if (!vixData.results?.[0]) throw new Error('API_ERROR_NO_VIX: Empty VIX response [Response: ' + JSON.stringify(vixData) + '] [Timestamp: ' + new Date().toISOString() + ']');
                     vixSpot = isAfterHours ? vixData.results[0].prev_close : vixData.results[0].value;
+                    // Fetch ATM IV from options chain
                     const exp = document.getElementById('expiration').value;
                     const type = document.getElementById('optionType').value.toLowerCase();
                     const chainUrl = `https://api.polygon.io/v3/snapshot/options/SPX?expiration_date=${exp}&contract_type=${type}&limit=200&strike_price_gte=${spxPrice-500}&strike_price_lte=${spxPrice+500}&apiKey=${apiKey}`;
@@ -400,7 +405,7 @@
                     const vixData = await vixResp.json();
                     if (!vixData['Global Quote']) throw new Error('API_ERROR_ALPHA_VIX: Invalid response [Response: ' + JSON.stringify(vixData) + '] [Timestamp: ' + new Date().toISOString() + ']');
                     vixSpot = parseFloat(vixData['Global Quote']['05. price']);
-                    atmIV = vixSpot;
+                    atmIV = vixSpot; // Fallback to VIX
                 } else {
                     const spxUrl = `https://finnhub.io/api/v1/quote?symbol=^GSPC&token=${apiKey}`;
                     const spxPromise = timeoutPromise(fetch(spxUrl), 10000);
@@ -416,7 +421,7 @@
                     const vixData = await vixResp.json();
                     if (!vixData.c) throw new Error('API_ERROR_FINNHUB_VIX: Invalid response [Response: ' + JSON.stringify(vixData) + '] [Timestamp: ' + new Date().toISOString() + ']');
                     vixSpot = vixData.c;
-                    atmIV = vixSpot;
+                    atmIV = vixSpot; // Fallback to VIX
                 }
                 if (!spxPrice || isNaN(spxPrice) || spxPrice <= 0) throw new Error('API_ERROR_INVALID_SPX: No valid SPX price [Timestamp: ' + new Date().toISOString() + ']');
                 document.getElementById('spx').value = spxPrice.toFixed(2);
@@ -428,7 +433,8 @@
                     document.getElementById('iv').value = (calibratedIV * 100).toFixed(2);
                 }
                 dataSource = 'live';
-                const T = 79 / 365;
+                // Dynamic Calibration
+                const T = 79 / 365; // Default DTE
                 const fetchedGreeks = blackScholesGreeks(spxPrice, spxPrice, T, 0.038, (document.getElementById('iv').value / 100), 0.013, 'call');
                 const expectedDelta = 0.98;
                 let driftNote = '';
@@ -536,12 +542,12 @@
                     const gamma = opt.greeks?.gamma?.toFixed(4) || 'N/A';
                     const theta = opt.greeks?.theta?.toFixed(2) || 'N/A';
                     const vega = opt.greeks?.vega?.toFixed(2) || 'N/A';
-                    if (isNaN(parseFloat(delta))) {
+                    if (isNaN(parseFloat(delta)) || bid === 'N/A') {
                         showError('PARSE_NA: Off-hours data—retry live [Timestamp: ' + new Date().toISOString() + ']');
                     }
-                    const skew = (parseFloat(iv) - atmIV).toFixed(2) || 'N/A';
+                    const skew = iv !== 'N/A' ? (parseFloat(iv) - atmIV).toFixed(2) : 'N/A';
                     if (skew !== 'N/A' && parseFloat(skew) > 15) {
-                        showError('SKEW_WARNING: High skew (>15) - Buy OTM [Timestamp: ' + new Date().toISOString() + ']');
+                        showError('SKEW_WARNING: High skew (>15) - Buy OTM before crush [Timestamp: ' + new Date().toISOString() + ']');
                     }
                     const row = document.createElement('tr');
                     row.innerHTML = `<td>${opt.details.strike_price}</td><td>${bid}</td><td>${ask}</td><td>${mid}</td><td>${iv}</td><td>${delta}</td><td>${gamma}</td><td>${theta}</td><td>${vega}</td><td>${skew}</td>`;
@@ -570,13 +576,13 @@
                 if (!spxResp.ok) throw new Error('PROXY_ERROR_SPY_HTTP_' + spxResp.status + ': Check API key or subscription [Timestamp: ' + new Date().toISOString() + ']');
                 const spxData = await spxResp.json();
                 if (!spxData.results?.[0]?.c) throw new Error('PROXY_ERROR_NO_SPY: Empty SPY response [Response: ' + JSON.stringify(spxData) + '] [Timestamp: ' + new Date().toISOString() + ']');
-                const spxPrice = spxData.results[0].c * 10;
+                const spxPrice = spxData.results[0].c * 10; // Approx SPX
                 const vixPromise = timeoutPromise(fetch(`https://api.polygon.io/v2/aggs/ticker/UVXY/prev?apiKey=${apiKey}`), 10000);
                 const vixResp = await vixPromise;
                 if (!vixResp.ok) throw new Error('PROXY_ERROR_UVXY_HTTP_' + vixResp.status + ': Check API key or subscription [Timestamp: ' + new Date().toISOString() + ']');
                 const vixData = await vixResp.json();
                 if (!vixData.results?.[0]?.c) throw new Error('PROXY_ERROR_NO_UVXY: Empty UVXY response [Response: ' + JSON.stringify(vixData) + '] [Timestamp: ' + new Date().toISOString() + ']');
-                const vixSpot = vixData.results[0].c * 0.5;
+                const vixSpot = vixData.results[0].c * 0.5; // Approx VIX
                 document.getElementById('spx').value = spxPrice.toFixed(2);
                 if (document.getElementById('ivSource').value === 'live') {
                     const T = calculateDTE(document.getElementById('expiration').value);
@@ -659,19 +665,6 @@
                 const gammas = Array.from({length: 21}, (_, i) => blackScholesGreeks(spxRange[i], K, T, r, sigma, q, type).gamma);
                 const thetas = Array.from({length: 21}, (_, i) => blackScholesGreeks(spxRange[i], K, T, r, sigma, q, type).theta);
                 const vegas = Array.from({length: 21}, (_, i) => blackScholesGreeks(spxRange[i], K, T, r, sigma, q, type).vega);
-                const chartOptions = {
-                    scales: { 
-                        x: { 
-                            title: { display: true, text: 'SPX Price' }, 
-                            ticks: { callback: function(val) { return Math.round(val); } } 
-                        }, 
-                        y: { 
-                            title: { display: true }, 
-                            beginAtZero: false 
-                        }
-                    },
-                    plugins: { annotation: { annotations: { line: { type: 'line', xMin: spxPrice, xMax: spxPrice, borderColor: 'red', borderWidth: 2 } } } }
-                };
                 charts.delta = new Chart(document.getElementById('deltaChart').getContext('2d'), {
                     type: 'line',
                     data: {
@@ -683,11 +676,16 @@
                         ]
                     },
                     options: {
-                        ...chartOptions,
                         scales: { 
-                            ...chartOptions.scales,
-                            y: { ...chartOptions.scales.y, title: { display: true, text: 'Delta' }, suggestedMin: Math.min(...deltas) * 1.1, suggestedMax: Math.max(...deltas) * 1.1 }
-                        }
+                            x: { title: { display: true, text: 'SPX Price' } }, 
+                            y: { 
+                                title: { display: true, text: 'Delta' }, 
+                                suggestedMin: Math.min(...deltas) * 1.1, 
+                                suggestedMax: Math.max(...deltas) * 1.1, 
+                                beginAtZero: false 
+                            }
+                        },
+                        plugins: { annotation: { annotations: { line: { type: 'line', xMin: spxPrice, xMax: spxPrice, borderColor: 'red', borderWidth: 2 } } } }
                     }
                 });
                 charts.gamma = new Chart(document.getElementById('gammaChart').getContext('2d'), {
@@ -701,11 +699,16 @@
                         ]
                     },
                     options: {
-                        ...chartOptions,
                         scales: { 
-                            ...chartOptions.scales,
-                            y: { ...chartOptions.scales.y, title: { display: true, text: 'Gamma' }, suggestedMin: Math.min(...gammas) * 1.1, suggestedMax: Math.max(...gammas) * 1.1 }
-                        }
+                            x: { title: { display: true, text: 'SPX Price' } }, 
+                            y: { 
+                                title: { display: true, text: 'Gamma' }, 
+                                suggestedMin: Math.min(...gammas) * 1.1, 
+                                suggestedMax: Math.max(...gammas) * 1.1, 
+                                beginAtZero: false 
+                            }
+                        },
+                        plugins: { annotation: { annotations: { line: { type: 'line', xMin: spxPrice, xMax: spxPrice, borderColor: 'red', borderWidth: 2 } } } }
                     }
                 });
                 charts.theta = new Chart(document.getElementById('thetaChart').getContext('2d'), {
@@ -719,11 +722,16 @@
                         ]
                     },
                     options: {
-                        ...chartOptions,
                         scales: { 
-                            ...chartOptions.scales,
-                            y: { ...chartOptions.scales.y, title: { display: true, text: 'Theta' }, suggestedMin: Math.min(...thetas) * 1.1, suggestedMax: Math.max(...thetas) * 1.1 }
-                        }
+                            x: { title: { display: true, text: 'SPX Price' } }, 
+                            y: { 
+                                title: { display: true, text: 'Theta' }, 
+                                suggestedMin: Math.min(...thetas) * 1.1, 
+                                suggestedMax: Math.max(...thetas) * 1.1, 
+                                beginAtZero: false 
+                            }
+                        },
+                        plugins: { annotation: { annotations: { line: { type: 'line', xMin: spxPrice, xMax: spxPrice, borderColor: 'red', borderWidth: 2 } } } }
                     }
                 });
                 charts.vega = new Chart(document.getElementById('vegaChart').getContext('2d'), {
@@ -737,11 +745,16 @@
                         ]
                     },
                     options: {
-                        ...chartOptions,
                         scales: { 
-                            ...chartOptions.scales,
-                            y: { ...chartOptions.scales.y, title: { display: true, text: 'Vega' }, suggestedMin: Math.min(...vegas) * 1.1, suggestedMax: Math.max(...vegas) * 1.1 }
-                        }
+                            x: { title: { display: true, text: 'SPX Price' } }, 
+                            y: { 
+                                title: { display: true, text: 'Vega' }, 
+                                suggestedMin: Math.min(...vegas) * 1.1, 
+                                suggestedMax: Math.max(...vegas) * 1.1, 
+                                beginAtZero: false 
+                            }
+                        },
+                        plugins: { annotation: { annotations: { line: { type: 'line', xMin: spxPrice, xMax: spxPrice, borderColor: 'red', borderWidth: 2 } } } }
                     }
                 });
             } catch (e) {
@@ -767,10 +780,6 @@
             } catch (e) {
                 showError('API_KEY_CHANGE_ERROR: ' + e.message + ' [Stack: ' + e.stack + '] [Timestamp: ' + new Date().toISOString() + ']');
             }
-        });
-        document.getElementById('ivSource').addEventListener('change', () => {
-            dataSource = document.getElementById('ivSource').value;
-            updateAll();
         });
         window.addEventListener('load', () => {
             try {
