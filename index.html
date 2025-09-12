@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SPX Mastery Long-Term Options Analyzer (Build 1, Version 29)</title>
+    <title>SPX Mastery Long-Term Options Analyzer (Build 1, Version 30)</title>
     <link rel="icon" href="https://storage.googleapis.com/msgsndr/DbcHU95N4uVVUJoOWctG/media/68c18e9983b98269408909db.png">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js" onload="console.log('CDN_SUCCESS_1: jsDelivr loaded')" onerror="console.log('CDN_ERROR_1: jsDelivr failed'); loadFallbackCDN(1)"></script>
     <script>
@@ -74,7 +74,7 @@
     <div class="disclaimer">
         <strong>Disclaimer:</strong> This tool is for educational purposes only and is not financial advice. Options trading involves significant risks, including the potential loss of your entire investment or more. Calculations are theoretical (Black-Scholes model) and may not reflect actual market conditions. The creator (spxmastery) is not liable for any financial losses or damages resulting from use of this tool. Consult a qualified financial advisor before trading options.
     </div>
-    <h1>SPX Mastery Long-Term Options Analyzer (Build 1, Version 29)</h1>
+    <h1>SPX Mastery Long-Term Options Analyzer (Build 1, Version 30)</h1>
     <div class="input-section">
         <h2>Input Parameters (Click Update to Recalculate)</h2>
         <div class="tooltip">
@@ -149,9 +149,13 @@
     <div class="chart-container">
         <h2>Greeks Charts (Blue: Value, Teal: Good Threshold, Purple: Warning Threshold, Vertical: Current SPX)</h2>
         <div id="chartError" class="error" style="display: none;"></div>
+        <h3>Delta Chart</h3>
         <canvas id="deltaChart"></canvas>
+        <h3>Gamma Chart</h3>
         <canvas id="gammaChart"></canvas>
+        <h3>Theta Chart</h3>
         <canvas id="thetaChart"></canvas>
+        <h3>Vega Chart</h3>
         <canvas id="vegaChart"></canvas>
         <p class="legend"><span class="teal">Favorable</span> | <span class="orange">Caution</span> | <span class="purple">Risky</span></p>
     </div>
@@ -356,25 +360,21 @@
                 const isHoliday = holidays.includes(todayStr);
                 const isAfterHours = isHoliday || etHour < 9 || (etHour === 9 && etMin < 30) || etHour >= 16;
                 document.getElementById('afterHoursNote').style.display = isAfterHours ? 'block' : 'none';
-                document.getElementById('afterHoursNote').innerText = isAfterHours ? (isHoliday ? 'Market Closed (Holiday): Data is last close [ET Time: ' + etHour + ':' + etMin + ']' : 'After-Hours: Data is last close (4:00 PM EDT) [ET Time: ' + etHour + ':' + etMin + ']') : 'Market Open [ET Time: ' + etHour + ':' + etMin + ']';
+                document.getElementById('afterHoursNote').innerText = isAfterHours ? (isHoliday ? 'Market Closed (Holiday): Prev Close [ET Time: ' + etHour + ':' + etMin + ']' : 'After-Hours: Prev Close [ET Time: ' + etHour + ':' + etMin + ']') : 'Market Open [ET Time: ' + etHour + ':' + etMin + ']';
                 let spxPrice, vixSpot, atmIV;
                 if (provider === 'polygon') {
-                    const spxResp = await timeoutPromise(fetch(`https://api.polygon.io/v3/snapshot/indices?ticker=I:SPX&apiKey=${apiKey}`), 10000);
-                    if (!spxResp.ok) {
-                        if (spxResp.status === 401) throw new Error('401: Invalid key/tier—regenerate or check Indices/Options subscription [See dashboard]');
-                        throw new Error('API_ERROR_SPX_HTTP_' + spxResp.status + ': Check API key permissions or Indices subscription [Timestamp: ' + new Date().toISOString() + ']');
-                    }
+                    const spxPromise = timeoutPromise(fetch(`https://api.polygon.io/v2/aggs/ticker/I:SPX/prev?apiKey=${apiKey}`), 10000);
+                    const spxResp = await spxPromise;
+                    if (!spxResp.ok) throw new Error('API_ERROR_SPX_HTTP_' + spxResp.status + ': Check API key permissions or Indices subscription [Timestamp: ' + new Date().toISOString() + ']');
                     const spxData = await spxResp.json();
-                    if (!spxData.results?.[0]) throw new Error('API_ERROR_NO_SPX: Empty SPX response [Response: ' + JSON.stringify(spxData) + '] [Timestamp: ' + new Date().toISOString() + ']');
-                    spxPrice = isAfterHours ? spxData.results[0].prev_close : spxData.results[0].value;
-                    const vixResp = await timeoutPromise(fetch(`https://api.polygon.io/v3/snapshot/indices?ticker=I:VIX&apiKey=${apiKey}`), 10000);
-                    if (!vixResp.ok) {
-                        if (vixResp.status === 401) throw new Error('401: Invalid key/tier—regenerate or check Indices/Options subscription [See dashboard]');
-                        throw new Error('API_ERROR_VIX_HTTP_' + vixResp.status + ': Check API key permissions or Indices subscription [Timestamp: ' + new Date().toISOString() + ']');
-                    }
+                    if (!spxData.results?.[0]?.c) throw new Error('API_ERROR_NO_SPX: Empty SPX response [Response: ' + JSON.stringify(spxData) + '] [Timestamp: ' + new Date().toISOString() + ']');
+                    spxPrice = spxData.results[0].c;
+                    const vixPromise = timeoutPromise(fetch(`https://api.polygon.io/v2/aggs/ticker/I:VIX/prev?apiKey=${apiKey}`), 10000);
+                    const vixResp = await vixPromise;
+                    if (!vixResp.ok) throw new Error('API_ERROR_VIX_HTTP_' + vixResp.status + ': Check API key permissions or Indices subscription [Timestamp: ' + new Date().toISOString() + ']');
                     const vixData = await vixResp.json();
-                    if (!vixData.results?.[0]) throw new Error('API_ERROR_NO_VIX: Empty VIX response [Response: ' + JSON.stringify(vixData) + '] [Timestamp: ' + new Date().toISOString() + ']');
-                    vixSpot = isAfterHours ? vixData.results[0].prev_close : vixData.results[0].value;
+                    if (!vixData.results?.[0]?.c) throw new Error('API_ERROR_NO_VIX: Empty VIX response [Response: ' + JSON.stringify(vixData) + '] [Timestamp: ' + new Date().toISOString() + ']');
+                    vixSpot = vixData.results[0].c;
                     // Fetch ATM IV from options chain
                     const exp = document.getElementById('expiration').value;
                     const type = document.getElementById('optionType').value.toLowerCase();
@@ -515,7 +515,7 @@
                     showError('CHAIN_EMPTY: No options data - refine expiration or symbol filters [Response: ' + JSON.stringify(data) + '] [Timestamp: ' + new Date().toISOString() + ']');
                     return;
                 }
-                console.log('Options Chain Response:', data);
+                console.log('Chain Data: ' + JSON.stringify(data));
                 const tbody = document.getElementById('chainTable').getElementsByTagName('tbody')[0];
                 tbody.innerHTML = '';
                 let atmIV = 0;
