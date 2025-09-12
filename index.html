@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SPX Mastery Long-Term Options Analyzer (Build 1, Version 29)</title>
+    <title>SPX Mastery Long-Term Options Analyzer (Build 1, Version 27)</title>
     <link rel="icon" href="https://storage.googleapis.com/msgsndr/DbcHU95N4uVVUJoOWctG/media/68c18e9983b98269408909db.png">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js" onload="console.log('CDN_SUCCESS_1: jsDelivr loaded')" onerror="console.log('CDN_ERROR_1: jsDelivr failed'); loadFallbackCDN(1)"></script>
     <script>
@@ -63,9 +63,6 @@
         .after-hours { color: orange; font-style: italic; text-align: center; margin: 5px 0; }
         .tradingview-container { display: flex; justify-content: space-around; flex-wrap: wrap; max-width: 800px; margin: 20px auto; }
         #tradingview_spx, #tradingview_vix { width: 300px; height: 300px; }
-        .tooltip { position: relative; display: inline-block; }
-        .tooltip .tooltiptext { visibility: hidden; width: 200px; background-color: #555; color: #fff; text-align: center; border-radius: 6px; padding: 5px; position: absolute; z-index: 1; bottom: 125%; left: 50%; margin-left: -100px; opacity: 0; transition: opacity 0.3s; }
-        .tooltip:hover .tooltiptext { visibility: visible; opacity: 1; }
     </style>
 </head>
 <body>
@@ -74,47 +71,41 @@
     <div class="disclaimer">
         <strong>Disclaimer:</strong> This tool is for educational purposes only and is not financial advice. Options trading involves significant risks, including the potential loss of your entire investment or more. Calculations are theoretical (Black-Scholes model) and may not reflect actual market conditions. The creator (spxmastery) is not liable for any financial losses or damages resulting from use of this tool. Consult a qualified financial advisor before trading options.
     </div>
-    <h1>SPX Mastery Long-Term Options Analyzer (Build 1, Version 28)</h1>
+    <h1>SPX Mastery Long-Term Options Analyzer (Build 1, Version 27)</h1>
     <div class="input-section">
         <h2>Input Parameters (Click Update to Recalculate)</h2>
-        <div class="tooltip">
-            <span class="tooltiptext">Use: Fetch chain, select strike for greeks; DTE for timing. Monitor skew for vol plays.</span>
-            <h3>Usage Instructions</h3>
-        </div>
         <div class="api-section">
-            <label>API Key: <input id="apiKey" type="password" class="api-input" placeholder="Enter Polygon Key" title="Polygon API key for live SPX/VIX/chain data"></label>
-            <label>Provider: <select id="apiProvider" title="Select API provider (Polygon recommended for options)"><option value="polygon">Polygon</option><option value="alpha">Alpha Vantage</option><option value="finnhub">Finnhub</option></select></label>
-            <button id="fetchLiveBtn" onclick="fetchLiveData()" title="Fetch live SPX/VIX data">Fetch Live Data</button>
-            <button id="fetchChainBtn" onclick="fetchOptionsChain()" title="Fetch options chain for selected expiration">Fetch Options Chain</button>
-            <button id="testApiBtn" onclick="testApi()" title="Test API key connectivity">Test API</button>
-            <button id="regenKey" onclick="alert('Go to Polygon dashboard > API Keys > Create New')" title="Regenerate Polygon API key">Regenerate Key</button>
-            <button id="refreshBtn" onclick="toggleRefresh()" title="Toggle auto-refresh every 60s">Auto-Refresh: Off</button>
+            <label>API Key: <input id="apiKey" type="password" class="api-input" placeholder="Enter Polygon Key" value="85b67707-e8e2-4fc4-91d4-073cf4308739"></label>
+            <label>Provider: <select id="apiProvider"><option value="polygon">Polygon</option><option value="alpha">Alpha Vantage</option><option value="finnhub">Finnhub</option></select></label>
+            <button id="fetchLiveBtn" onclick="fetchLiveData()">Fetch Live Data</button>
+            <button id="fetchChainBtn" onclick="fetchOptionsChain()">Fetch Options Chain</button>
+            <button id="testApiBtn" onclick="testApi()">Test API</button>
             <p class="api-note">Polygon tier: Indices/Options. Use for live SPX/VIX/chain. After-hours: Shows last close.</p>
         </div>
         <div class="input-group">
-            <label>SPX Price: <input id="spx" type="number" value="6550" step="0.01" title="Live SPX—fetches real-time (hours) or close (after)"></label>
-            <label>Strike (K): <input id="strike" type="number" value="7000" title="Option strike price (click chain row to auto-fill)"></label>
-            <label>Expiration (YYYY-MM-DD): <input id="expiration" type="date" value="2025-11-28" title="Option expiration date"></label>
-            <label>IV (%): <input id="iv" type="number" value="15" step="0.01" title="Implied volatility (live or manual)"></label>
+            <label>SPX Price: <input id="spx" type="number" value="6550" step="0.01"></label>
+            <label>Strike (K): <input id="strike" type="number" value="7000"></label>
+            <label>Expiration (YYYY-MM-DD): <input id="expiration" type="date" value="2025-11-28"></label>
+            <label>IV (%): <input id="iv" type="number" value="15" step="0.01"></label>
         </div>
         <div class="input-group">
-            <label>Premium: <input id="premium" type="number" value="13.75" step="0.01" title="Option premium (mid-price from chain)"></label>
-            <label>Contracts: <input id="contracts" type="number" value="10" min="1" title="Number of contracts"></label>
-            <label>Risk-Free Rate (r %): <input id="r" type="number" value="3.8" step="0.01" title="Risk-free rate (e.g., Treasury yield)"></label>
-            <label>Dividend Yield (q %): <input id="q" type="number" value="1.3" step="0.01" title="SPX dividend yield"></label>
+            <label>Premium: <input id="premium" type="number" value="13.75" step="0.01"></label>
+            <label>Contracts: <input id="contracts" type="number" value="10" min="1"></label>
+            <label>Risk-Free Rate (r %): <input id="r" type="number" value="3.8" step="0.01"></label>
+            <label>Dividend Yield (q %): <input id="q" type="number" value="1.3" step="0.01"></label>
         </div>
         <div class="input-group">
-            <label>EDR Days: <input id="edrDays" type="number" value="30" step="1" title="Expected drawdown range days"></label>
-            <button id="edr30Btn" onclick="setEdrDays(30)" title="Set EDR to 30 days">30 Days</button>
-            <button id="edr60Btn" onclick="setEdrDays(60)" title="Set EDR to 60 days">60 Days</button>
-            <button id="edr90Btn" onclick="setEdrDays(90)" title="Set EDR to 90 days">90 Days</button>
-            <label>Custom EDR (%): <input id="customEdr" type="number" placeholder="Override" step="0.01" title="Override EDR range (%)"></label>
+            <label>EDR Days: <input id="edrDays" type="number" value="30" step="1"></label>
+            <button id="edr30Btn" onclick="setEdrDays(30)">30 Days</button>
+            <button id="edr60Btn" onclick="setEdrDays(60)">60 Days</button>
+            <button id="edr90Btn" onclick="setEdrDays(90)">90 Days</button>
+            <label>Custom EDR (%): <input id="customEdr" type="number" placeholder="Override" step="0.01"></label>
         </div>
         <div class="input-group">
-            <label>IV Source: <select id="ivSource" value="live" title="Live: Fetched IV; Manual: User input"><option value="live">Live</option><option value="manual">Manual</option></select></label>
-            <label>Option Type: <select id="optionType" title="Call or Put"><option value="call">Call</option><option value="put">Put</option></select></label>
-            <button id="updateBtn" onclick="updateAll()" title="Recalculate greeks and charts">Update</button>
-            <button id="proxyBtn" onclick="applyEtfProxy()" title="Use SPY/UVXY for SPX/VIX proxy">ETF Proxy</button>
+            <label>IV Source: <select id="ivSource" value="live"><option value="live">Live</option><option value="manual">Manual</option></select></label>
+            <label>Option Type: <select id="optionType"><option value="call">Call</option><option value="put">Put</option></select></label>
+            <button id="updateBtn" onclick="updateAll()">Update</button>
+            <button id="proxyBtn" onclick="applyEtfProxy()">ETF Proxy</button>
         </div>
         <p id="afterHoursNote" class="after-hours" style="display: none;">After-Hours: Data is last close (4:00 PM EDT).</p>
         <p id="contangoStatus"></p>
@@ -191,7 +182,6 @@
         console.log('SCRIPT_PARSED: Ready [Timestamp: ' + new Date().toISOString() + ']');
         let dataSource = 'live'; // Track live or manual
         let charts = {}; // Store Chart.js instances
-        let interval;
         const holidays = ['2025-09-01', '2025-11-27', '2025-12-25']; // Example holidays
         function normCDF(x) {
             try {
@@ -232,7 +222,7 @@
                 }
                 gamma = Math.exp(-q * T) / (S * sigma * Math.sqrt(T)) * (1 / Math.sqrt(2 * Math.PI)) * Math.exp(-(d1 ** 2) / 2);
                 theta = -(S * Math.exp(-q * T) * (1 / Math.sqrt(2 * Math.PI)) * Math.exp(-(d1 ** 2) / 2) * sigma) / (2 * Math.sqrt(T)) - r * K * Math.exp(-r * T) * (type === 'call' ? nd2 : -nnd2) + q * S * Math.exp(-q * T) * (type === 'call' ? nd1 : -nnd1);
-                theta /= 252;
+                theta /= 252; // Trading days
                 vega = S * Math.exp(-q * T) * Math.sqrt(T) * (1 / Math.sqrt(2 * Math.PI)) * Math.exp(-(d1 ** 2) / 2) / 100;
                 if (isNaN(price) || isNaN(delta) || isNaN(gamma) || isNaN(theta) || isNaN(vega)) {
                     throw new Error('Numerical error: NaN in calculations');
@@ -319,22 +309,6 @@
                 new Promise((_, reject) => setTimeout(() => reject(new Error('FETCH_TIMEOUT: Request timed out after ' + ms + 'ms [Timestamp: ' + new Date().toISOString() + ']')), ms))
             ]);
         }
-        function toggleRefresh() {
-            const refreshBtn = document.getElementById('refreshBtn');
-            const apiKey = document.getElementById('apiKey').value;
-            if (!apiKey) {
-                showError('NO_KEY: Enter key for refresh [Timestamp: ' + new Date().toISOString() + ']');
-                return;
-            }
-            if (interval) {
-                clearInterval(interval);
-                interval = null;
-                refreshBtn.innerText = 'Auto-Refresh: Off';
-            } else {
-                interval = setInterval(fetchLiveData, 60000);
-                refreshBtn.innerText = 'Auto-Refresh: On';
-            }
-        }
         async function fetchLiveData(attempt = 1, maxAttempts = 3) {
             const fetchBtn = document.getElementById('fetchLiveBtn');
             try {
@@ -360,21 +334,15 @@
                 let spxPrice, vixSpot, atmIV;
                 if (provider === 'polygon') {
                     const spxResp = await timeoutPromise(fetch(`https://api.polygon.io/v3/snapshot/indices?ticker=I:SPX&apiKey=${apiKey}`), 10000);
-                    if (!spxResp.ok) {
-                        if (spxResp.status === 401) throw new Error('401: Invalid key/tier—regenerate or check Indices/Options subscription [See dashboard]');
-                        throw new Error('API_ERROR_SPX_HTTP_' + spxResp.status + ': Check API key permissions or Indices subscription [Timestamp: ' + new Date().toISOString() + ']');
-                    }
+                    if (!spxResp.ok) throw new Error('API_ERROR_SPX_HTTP_' + spxResp.status + ': Check API key permissions or Indices subscription [Timestamp: ' + new Date().toISOString() + ']');
                     const spxData = await spxResp.json();
                     if (!spxData.results?.[0]) throw new Error('API_ERROR_NO_SPX: Empty SPX response [Response: ' + JSON.stringify(spxData) + '] [Timestamp: ' + new Date().toISOString() + ']');
-                    spxPrice = isAfterHours ? spxData.results[0].prev_close : spxData.results[0].value;
+                    spxPrice = spxData.results[0].value || spxData.results[0].prev_close;
                     const vixResp = await timeoutPromise(fetch(`https://api.polygon.io/v3/snapshot/indices?ticker=I:VIX&apiKey=${apiKey}`), 10000);
-                    if (!vixResp.ok) {
-                        if (vixResp.status === 401) throw new Error('401: Invalid key/tier—regenerate or check Indices/Options subscription [See dashboard]');
-                        throw new Error('API_ERROR_VIX_HTTP_' + vixResp.status + ': Check API key permissions or Indices subscription [Timestamp: ' + new Date().toISOString() + ']');
-                    }
+                    if (!vixResp.ok) throw new Error('API_ERROR_VIX_HTTP_' + vixResp.status + ': Check API key permissions or Indices subscription [Timestamp: ' + new Date().toISOString() + ']');
                     const vixData = await vixResp.json();
                     if (!vixData.results?.[0]) throw new Error('API_ERROR_NO_VIX: Empty VIX response [Response: ' + JSON.stringify(vixData) + '] [Timestamp: ' + new Date().toISOString() + ']');
-                    vixSpot = isAfterHours ? vixData.results[0].prev_close : vixData.results[0].value;
+                    vixSpot = vixData.results[0].value || vixData.results[0].prev_close;
                     // Fetch ATM IV from options chain
                     const exp = document.getElementById('expiration').value;
                     const type = document.getElementById('optionType').value.toLowerCase();
@@ -526,9 +494,9 @@
                 data.results = data.results.sort((a, b) => a.details.strike_price - b.details.strike_price);
                 const filteredResults = data.results.filter(opt => {
                     if (type === 'call') {
-                        return opt.details.strike_price >= spxPrice - 50 && opt.details.strike_price <= spxPrice + 1000;
+                        return opt.details.strike_price >= spxPrice -50 && opt.details.strike_price <= spxPrice +1000;
                     } else {
-                        return opt.details.strike_price <= spxPrice + 50 && opt.details.strike_price >= spxPrice - 1000;
+                        return opt.details.strike_price <= spxPrice +50 && opt.details.strike_price >= spxPrice -1000;
                     }
                 });
                 filteredResults.forEach(opt => {
@@ -542,11 +510,11 @@
                     const gamma = opt.greeks?.gamma?.toFixed(4) || 'N/A';
                     const theta = opt.greeks?.theta?.toFixed(2) || 'N/A';
                     const vega = opt.greeks?.vega?.toFixed(2) || 'N/A';
-                    if (isNaN(parseFloat(delta)) || bid === 'N/A') {
+                    if (isNaN(parseFloat(delta))) {
                         showError('PARSE_NA: Off-hours data—retry live [Timestamp: ' + new Date().toISOString() + ']');
                     }
-                    const skew = iv !== 'N/A' ? (parseFloat(iv) - atmIV).toFixed(2) : 'N/A';
-                    if (skew !== 'N/A' && parseFloat(skew) > 15) {
+                    const skew = (parseFloat(iv) - atmIV).toFixed(2);
+                    if (skew > 15) {
                         showError('SKEW_WARNING: High skew (>15) - Buy OTM before crush [Timestamp: ' + new Date().toISOString() + ']');
                     }
                     const row = document.createElement('tr');
