@@ -1,815 +1,918 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SPX Mastery Long-Term Options Analyzer (Build 1, Version 28)</title>
-    <link rel="icon" href="https://storage.googleapis.com/msgsndr/DbcHU95N4uVVUJoOWctG/media/68c18e9983b98269408909db.png">
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js" onload="console.log('CDN_SUCCESS_1: jsDelivr loaded')" onerror="console.log('CDN_ERROR_1: jsDelivr failed'); loadFallbackCDN(1)"></script>
-    <script>
-        function loadFallbackCDN(attempt) {
-            console.log(`LOADING_FALLBACK_CDN: Attempt ${attempt} [Timestamp: ${new Date().toISOString()}]`);
-            const fallbackScript = document.createElement('script');
-            fallbackScript.src = attempt === 1 ? 'https://cdnjs.cloudflare.com/ajax/libs/chart.js/4.4.4/chart.min.js' : 'https://unpkg.com/chart.js@4.4.4/dist/chart.min.js';
-            fallbackScript.onload = () => console.log(`CDN_SUCCESS_${attempt + 1}: Fallback loaded [Timestamp: ${new Date().toISOString()}]`);
-            fallbackScript.onerror = () => {
-                console.log(`CDN_ERROR_${attempt + 1}: Fallback failed [Timestamp: ${new Date().toISOString()}]`);
-                if (attempt === 1) loadFallbackCDN(2);
-                else {
-                    console.log('CDN_ERROR_ALL: All Chart.js CDNs failed [Timestamp: ${new Date().toISOString()}]');
-                    document.getElementById('chartError').style.display = 'block';
-                    document.getElementById('chartError').innerText = 'CDN_ERROR_ALL: All Chart.js CDNs failed. Disable ad blockers or try incognito mode [Timestamp: ' + new Date().toISOString() + ']';
-                }
-            };
-            document.head.appendChild(fallbackScript);
+//+------------------------------------------------------------------+
+//| ForexFibonacci Candle Volatility Projector (FCVP) and FearWave by SPXMASTERY |
+//| Copyright 2025, Russell Clark SPXMASTERY.com |
+//| https://www.mql5.com |
+//| Build 1 Version 57 - Greatest EA: CPU optimized (bar-based, shortened periods, caching); slippage logging for demo/live.
+//+------------------------------------------------------------------+
+#property copyright "Copyright 2025, Russell Clark SPXMASTERY.com"
+#property link "https://www.mql5.com"
+#property version "1.57"
+#property description "Forex Fear Wave EA integrated with Fibonacci Candle Volatility Projector (FCVP) for any timeframe scalping. Adjustable time offset. Integrated VWAP for self-contained bias calculation. Greatest EA: CPU optimized (bar-based, shortened periods, caching); slippage logging for demo/live."
+#include <Trade\Trade.mqh>
+// Integrated VWAP Enums
+enum FCVP_VWAP_DATE_TYPE
+  {
+   FCVP_VWAP_DAILY,
+   FCVP_VWAP_WEEKLY,
+   FCVP_VWAP_MONTHLY
+  };
+enum FCVP_PRICE_TYPE
+  {
+   FCVP_OPEN,
+   FCVP_CLOSE,
+   FCVP_HIGH,
+   FCVP_LOW,
+   FCVP_OPEN_CLOSE,
+   FCVP_HIGH_LOW,
+   FCVP_CLOSE_HIGH_LOW,
+   FCVP_OPEN_CLOSE_HIGH_LOW
+  };
+// Inputs
+input double FCVP_LotSize = 0.01;
+input double FCVP_FearThreshold = 500.0;
+input double FCVP_ForesightThreshold = 0.3;
+input int FCVP_SessionStartHour = 8;
+input int FCVP_SessionEndHour = 9;
+input int FCVP_TimeOffset = -6;
+input bool FCVP_UseBrokerCST = false;
+input int FCVP_LookbackDays = 100;
+input double FCVP_VegaThreshold = 1.3; // Tightened
+input ENUM_TIMEFRAMES FCVP_LowerTF = PERIOD_M5;
+input ENUM_TIMEFRAMES FCVP_HigherTF = PERIOD_H1;
+input bool FCVP_UseZoneCheck = false;
+input double FCVP_Buffer = 0.0001;
+input bool FCVP_IgnorePauses = true;
+input bool FCVP_DebugMode = true;
+input double FCVP_RiskPercent = 1.0;
+input double FCVP_SLMulti = 4.0; // Widened for longer SL
+input double FCVP_TPMulti = 0.2; // Smaller for higher wins
+input int FCVP_BreakevenPips = 20;
+input bool FCVP_UseVirtualSL = true;
+input string FCVP_TrailingType = "Chandelier"; // New option for runners
+input double FCVP_PartialClosePct = 50.0;
+input double FCVP_TrailStep = 20.0; // Widened from 10
+input int FCVP_MaxOpen = 3;
+input int FCVP_CooldownSecs = 1;
+input int FCVP_MaxTradesDay = 10000; // "Off" for data
+input double FCVP_HurstThreshold = 0.45; // Loosened from 0.5
+input int FCVP_HurstPeriod = 50; // Shortened from 100
+input int FCVP_MaxPyramids = 2;
+input int FCVP_GARCHPeriod = 10; // Shortened from 20
+input string FCVP_VWAP_Name = "Integrated Volume Weighted Average Price (VWAP)";
+input FCVP_PRICE_TYPE FCVP_VWAP_Price_Type = FCVP_CLOSE_HIGH_LOW;
+input bool FCVP_VWAP_Enable_Daily = true;
+input bool FCVP_VWAP_Enable_Weekly = false;
+input bool FCVP_VWAP_Enable_Monthly = false;
+input bool FCVP_ForceTrading = true;
+input bool FCVP_EnableAlerts = false;
+input bool FCVP_RestrictHyperToSession = false;
+input bool FCVP_TestMode = true;
+input int FCVP_FixedSLPips = 35; // New: Fixed SL in pips for losses
+input int FCVP_FixedTPPips = 0; // New: 0 for no TP, use trail for wins
+input double FCVP_ChandelierMulti = 4.0; // Widened from 3.0 for ~100 pips room
+input int FCVP_TrailAfterPips = 35; // Start trail after this profit
+input double FCVP_GARCHPauseThreshold = 0.01; // Tightened for pauses
+input int FCVP_PyramidMinPips = 5; // Lower threshold for pyramid
+input string FCVP_Symbols = "EURUSD,GBPUSD"; // Multi-pair ready (future: loop over StringSplit)
+// Globals (added for Chandelier)
+double FCVP_FHVV = 0.0;
+double FCVP_Vega = 1.0;
+double FCVP_Bias = 0.0;
+double FCVP_Hurst = 0.5;
+double FCVP_GARCH_Vol = 0.0;
+double FCVP_Prev_GARCH = 0.0;
+double FCVP_ACH = 0.0;
+double FCVP_ACL = 0.0;
+MqlRates FCVP_rates[];
+int FCVP_rsi_handle = INVALID_HANDLE;
+int FCVP_macd_handle = INVALID_HANDLE;
+int FCVP_sma_handle = INVALID_HANDLE;
+int FCVP_ema_handle = INVALID_HANDLE;
+int FCVP_atr_handle = INVALID_HANDLE;
+int FCVP_psar_handle = INVALID_HANDLE;
+int FCVP_wins = 0;
+int FCVP_losses = 0;
+datetime FCVP_last_halt_print = 0;
+datetime FCVP_last_entry_debug = 0;
+datetime FCVP_last_condition_debug = 0;
+datetime FCVP_last_trade_time = 0;
+int FCVP_daily_trades = 0;
+datetime FCVP_current_day = 0;
+int FCVP_bars_per_session = 0;
+const int FCVP_MIN_BARS_REQUIRED = 200;
+const int FCVP_MIN_LOOKBACK_DAYS = 100;
+long FCVP_stop_level = 0;
+double FCVP_pip_value = 0.0;
+long FCVP_next_magic = 123456789;
+datetime FCVP_last_dd_alert = 0;
+datetime FCVP_last_fhvv_debug = 0;
+datetime FCVP_last_vwap_time = 0;
+datetime FCVP_last_news_time = 0;
+datetime FCVP_last_bar_time = 0;
+double FCVP_cached_slope = 0.0;
+datetime FCVP_last_slope_time = 0;
+int FCVP_slippage_log_handle = INVALID_HANDLE; // Renamed from file_handle
+// VWAP Globals
+double FCVP_VWAP_Buffer_Daily[];
+double FCVP_VWAP_Buffer_Weekly[];
+double FCVP_VWAP_Buffer_Monthly[];
+double FCVP_VWAP_PriceArr[];
+double FCVP_VWAP_TotalTPV[];
+double FCVP_VWAP_TotalVol[];
+double FCVP_VWAP_SumDailyTPV = 0, FCVP_VWAP_SumWeeklyTPV = 0, FCVP_VWAP_SumMonthlyTPV = 0;
+double FCVP_VWAP_SumDailyVol = 0, FCVP_VWAP_SumWeeklyVol = 0, FCVP_VWAP_SumMonthlyVol = 0;
+int FCVP_VWAP_IdxDaily=0, FCVP_VWAP_IdxWeekly=0, FCVP_VWAP_IdxMonthly=0, FCVP_VWAP_Idx=0;
+bool FCVP_VWAP_IsFirstRun=true;
+ENUM_TIMEFRAMES FCVP_VWAP_LastTimePeriod=PERIOD_MN1;
+datetime FCVP_VWAP_LastDay;
+datetime FCVP_VWAP_LastWeek;
+datetime FCVP_VWAP_LastMonth;
+double FCVP_VWAP_Current = 0.0;
+// Function prototypes
+double CalculateFHVV(ENUM_TIMEFRAMES tf);
+double CalculateVega();
+double CalculateBiasEnsemble();
+double LinearRegressionSlope();
+double CalculateHurst();
+double CalculateGARCHProxy();
+double CalculateForesightScore();
+void CalculateDualBands();
+void DrawBands();
+void DrawEntryArrow(bool isBuy);
+double CalculateFearScore();
+double GetATR();
+double ScaledLotSize(double sl_distance);
+void UpdateTrailingStops();
+bool IsTradingTime();
+bool IsHighVolPause();
+double ArrayAvg(double &arr[]);
+double StdDev(double &arr[]);
+void UpdateWinLoss();
+void EnterTrade(bool buy);
+bool HasHighImpactNews();
+double GetSwingHigh(int bars);
+double GetSwingLow(int bars);
+double GetPSAR();
+void PyramidOnWinner(ulong ticket);
+double CalculateDrawdown();
+void CloseAllPositions();
+bool IsPastSessionEnd15Min();
+datetime FCVP_VWAP_CreateDateTime(FCVP_VWAP_DATE_TYPE nReturnType=FCVP_VWAP_DATE_TYPE::FCVP_VWAP_DAILY, datetime dtDay=D'2000.01.01 00:00:00', int pHour=0, int pMinute=0, int pSecond=0);
+void FCVP_VWAP_Compute();
+double PredictBias(double &features[]);
+// OnInit
+int OnInit() {
+  int FCVP_period_minutes = (int)(PeriodSeconds(_Period) / 60);
+  FCVP_bars_per_session = 240 / FCVP_period_minutes;
+  FCVP_rsi_handle = iRSI(_Symbol, _Period, 14, PRICE_CLOSE);
+  if (FCVP_rsi_handle == INVALID_HANDLE) { Print("Failed to create RSI handle"); return INIT_FAILED; }
+  FCVP_macd_handle = iMACD(_Symbol, _Period, 12, 26, 9, PRICE_CLOSE);
+  if (FCVP_macd_handle == INVALID_HANDLE) { Print("Failed to create MACD handle"); return INIT_FAILED; }
+  FCVP_ema_handle = iMA(_Symbol, _Period, 20, 0, MODE_EMA, PRICE_CLOSE);
+  if (FCVP_ema_handle == INVALID_HANDLE) { Print("Failed to create EMA handle"); return INIT_FAILED; }
+  FCVP_atr_handle = iATR(_Symbol, _Period, 14);
+  if (FCVP_atr_handle == INVALID_HANDLE) { Print("Failed to create ATR handle"); return INIT_FAILED; }
+  FCVP_sma_handle = iMA(_Symbol, _Period, 50, 0, MODE_SMA, PRICE_CLOSE);
+  if (FCVP_sma_handle == INVALID_HANDLE) { Print("Failed to create SMA handle"); return INIT_FAILED; }
+  FCVP_psar_handle = iSAR(_Symbol, _Period, 0.02, 0.2);
+  if (FCVP_psar_handle == INVALID_HANDLE) { Print("Failed to create PSAR handle"); return INIT_FAILED; }
+  FCVP_stop_level = SymbolInfoInteger(_Symbol, SYMBOL_TRADE_STOPS_LEVEL);
+  FCVP_pip_value = SymbolInfoDouble(_Symbol, SYMBOL_TRADE_TICK_VALUE_LOSS) / SymbolInfoDouble(_Symbol, SYMBOL_TRADE_TICK_SIZE);
+  ArraySetAsSeries(FCVP_rates, true);
+  UpdateWinLoss();
+  datetime FCVP_init_day = TimeCurrent() - (TimeCurrent() % 86400); // Local, no hide
+  FCVP_current_day = FCVP_init_day; // Assign to global
+  FCVP_last_vwap_time = iTime(_Symbol, _Period, 0);
+  FCVP_last_bar_time = iTime(_Symbol, _Period, 0);
+  Print("Timeframe: ", EnumToString(_Period), " Bars per session: ", FCVP_bars_per_session);
+  // Integrated VWAP init
+  FCVP_VWAP_LastDay = FCVP_VWAP_CreateDateTime(FCVP_VWAP_DATE_TYPE::FCVP_VWAP_DAILY);
+  FCVP_VWAP_LastWeek = FCVP_VWAP_CreateDateTime(FCVP_VWAP_DATE_TYPE::FCVP_VWAP_WEEKLY);
+  FCVP_VWAP_LastMonth = FCVP_VWAP_CreateDateTime(FCVP_VWAP_DATE_TYPE::FCVP_VWAP_MONTHLY);
+  ArraySetAsSeries(FCVP_VWAP_Buffer_Daily, true);
+  ArraySetAsSeries(FCVP_VWAP_Buffer_Weekly, true);
+  ArraySetAsSeries(FCVP_VWAP_Buffer_Monthly, true);
+  FCVP_slippage_log_handle = FileOpen("slippage.log", FILE_WRITE|FILE_TXT|FILE_ANSI|FILE_SHARE_READ);
+  if (FCVP_slippage_log_handle == INVALID_HANDLE) Print("Slippage log file open failed");
+  return INIT_SUCCEEDED;
+}
+// OnDeinit
+void OnDeinit(const int reason) {
+  IndicatorRelease(FCVP_rsi_handle);
+  IndicatorRelease(FCVP_macd_handle);
+  IndicatorRelease(FCVP_ema_handle);
+  IndicatorRelease(FCVP_atr_handle);
+  IndicatorRelease(FCVP_sma_handle);
+  IndicatorRelease(FCVP_psar_handle);
+  ObjectsDeleteAll(0, -1, -1);
+  if (FCVP_slippage_log_handle != INVALID_HANDLE) FileClose(FCVP_slippage_log_handle);
+}
+// OnTick
+void OnTick() {
+  int FCVP_copied = CopyRates(_Symbol, _Period, 0, FCVP_LookbackDays * FCVP_bars_per_session + 100, FCVP_rates);
+  if (FCVP_copied < FCVP_MIN_BARS_REQUIRED) {
+    Print("Insufficient bars for full computation: ", FCVP_copied, " < ", FCVP_MIN_BARS_REQUIRED);
+    return;
+  }
+  datetime current_bar_time = iTime(_Symbol, _Period, 0);
+  if (current_bar_time != FCVP_last_bar_time) {
+    double FCVP_FHVV_current = CalculateFHVV(_Period);
+    double FCVP_FHVV_lower = CalculateFHVV(FCVP_LowerTF);
+    double FCVP_FHVV_higher = CalculateFHVV(FCVP_HigherTF);
+    static double FCVP_ema_fhvv = 0.0;
+    double FCVP_raw_fhvv = 0.5 * FCVP_FHVV_current + 0.3 * FCVP_FHVV_lower + 0.2 * FCVP_FHVV_higher;
+    if (FCVP_ema_fhvv == 0.0) FCVP_ema_fhvv = FCVP_raw_fhvv;
+    FCVP_ema_fhvv = FCVP_ema_fhvv * 0.9 + FCVP_raw_fhvv * 0.1;
+    FCVP_FHVV = FCVP_ema_fhvv;
+    if (FCVP_FHVV <= 0.0) {
+      FCVP_FHVV = GetATR() * 1.5; // Enhanced fallback
+      if (FCVP_DebugMode) Print("Data skip: FHVV fallback to ATR*1.5 = ", FCVP_FHVV);
+    }
+    FCVP_Hurst = CalculateHurst();
+    FCVP_Prev_GARCH = FCVP_GARCH_Vol;
+    FCVP_GARCH_Vol = CalculateGARCHProxy();
+    if (FCVP_GARCH_Vol <= 0.0) FCVP_GARCH_Vol = 0.0001;
+    if (TimeCurrent() - FCVP_last_slope_time > 5) {
+      FCVP_cached_slope = LinearRegressionSlope();
+      FCVP_last_slope_time = TimeCurrent();
+    }
+    FCVP_Bias = CalculateBiasEnsemble();
+    FCVP_last_bar_time = current_bar_time;
+  }
+  if (iTime(_Symbol, _Period, 0) != FCVP_last_vwap_time) {
+    FCVP_VWAP_Compute();
+    FCVP_last_vwap_time = iTime(_Symbol, _Period, 0);
+  }
+  FCVP_Vega = CalculateVega();
+  double FCVP_foresight = CalculateForesightScore();
+  CalculateDualBands();
+  DrawBands();
+  double FCVP_fear = CalculateFearScore();
+  bool FCVP_trading_time = FCVP_ForceTrading ? true : IsTradingTime(); // Full override
+  bool FCVP_high_vol_pause = IsHighVolPause() || (FCVP_GARCH_Vol > FCVP_Prev_GARCH * 1.5);
+  bool FCVP_news_pause = HasHighImpactNews();
+  if (FCVP_news_pause) FCVP_last_news_time = TimeCurrent();
+  bool FCVP_news_duration_pause = (TimeCurrent() - FCVP_last_news_time < 1800);
+  bool is_tester = MQLInfoInteger(MQL_TESTER);
+  bool ignore_pauses = FCVP_IgnorePauses || (is_tester && FCVP_TestMode);
+  if (FCVP_high_vol_pause || FCVP_news_pause || FCVP_news_duration_pause) {
+    Print("Anomaly: High vol or news - intervention needed");
+  }
+  if (FCVP_DebugMode && TimeCurrent() - FCVP_last_condition_debug > 300) {
+    Print("Entry conditions: Bias=", FCVP_Bias, ", Foresight=", FCVP_foresight, ", Hurst=", FCVP_Hurst, ", Fear=", FCVP_fear, ", InZone=", FCVP_UseZoneCheck ? (FCVP_rates[0].close >= FCVP_ACL && FCVP_rates[0].close <= FCVP_ACH) : true,
+          ", TradingTime=", FCVP_trading_time, ", HighVolPause=", FCVP_high_vol_pause, ", NewsPause=", FCVP_news_pause);
+    FCVP_last_condition_debug = TimeCurrent();
+  }
+  if (IsPastSessionEnd15Min() && PositionsTotal() > 0) {
+    CloseAllPositions();
+    Print("Post-session force close at 9:15 CST");
+  }
+  if ((!FCVP_trading_time || FCVP_high_vol_pause || FCVP_news_pause || FCVP_news_duration_pause) && !ignore_pauses) {
+    if (TimeCurrent() - FCVP_last_halt_print > 3600) {
+      Print("Trading halted due to time/vol/news");
+      FCVP_last_halt_print = TimeCurrent();
+    }
+    UpdateTrailingStops();
+    return;
+  }
+  bool FCVP_in_zone = true;
+  if (FCVP_UseZoneCheck) FCVP_in_zone = (FCVP_rates[0].close >= FCVP_ACL && FCVP_rates[0].close <= FCVP_ACH);
+  datetime FCVP_day = TimeCurrent() - (TimeCurrent() % 86400);
+  if (FCVP_day != FCVP_current_day) {
+    FCVP_daily_trades = 0;
+    FCVP_current_day = FCVP_day;
+  }
+  if (MathAbs(FCVP_Bias) > 0.0 && FCVP_foresight > FCVP_ForesightThreshold && FCVP_Hurst > FCVP_HurstThreshold && FCVP_in_zone && FCVP_fear < FCVP_FearThreshold &&
+      PositionsTotal() < FCVP_MaxOpen && TimeCurrent() - FCVP_last_trade_time > FCVP_CooldownSecs && FCVP_daily_trades < FCVP_MaxTradesDay) {
+    if (FCVP_Bias > 0) {
+      EnterTrade(true);
+    } else if (FCVP_Bias < 0) {
+      EnterTrade(false);
+    }
+    FCVP_last_trade_time = TimeCurrent();
+    FCVP_daily_trades++;
+  }
+  UpdateTrailingStops();
+  double FCVP_dd = CalculateDrawdown();
+  if (FCVP_dd > 1.0 && TimeCurrent() - FCVP_last_dd_alert > 300) {
+    Print("Drawdown >1%: " + DoubleToString(FCVP_dd, 2) + " - Monitor positions");
+    FCVP_last_dd_alert = TimeCurrent();
+  }
+  if (FCVP_dd > 2.0) {
+    CloseAllPositions();
+    Print("Critical DD >2% - All positions closed");
+  }
+}
+// OnTradeTransaction
+void OnTradeTransaction(const MqlTradeTransaction &trans, const MqlTradeRequest &request, const MqlTradeResult &result) {
+  if (trans.type == TRADE_TRANSACTION_DEAL_ADD) {
+    if (HistoryDealGetInteger(trans.deal, DEAL_ENTRY) == DEAL_ENTRY_OUT) {
+      UpdateWinLoss();
+    }
+    if (HistoryDealGetInteger(trans.deal, DEAL_ENTRY) == DEAL_ENTRY_IN) {
+      long deal_type = HistoryDealGetInteger(trans.deal, DEAL_TYPE);
+      double deal_price = HistoryDealGetDouble(trans.deal, DEAL_PRICE);
+      double current_ask = SymbolInfoDouble(_Symbol, SYMBOL_ASK);
+      double current_bid = SymbolInfoDouble(_Symbol, SYMBOL_BID);
+      double slippage = 0;
+      if (deal_type == DEAL_TYPE_BUY) slippage = (deal_price - current_ask) / _Point;
+      else if (deal_type == DEAL_TYPE_SELL) slippage = (current_bid - deal_price) / _Point;
+      if (FCVP_slippage_log_handle != INVALID_HANDLE) FileWrite(FCVP_slippage_log_handle, TimeToString(TimeCurrent(), TIME_DATE|TIME_SECONDS) + " Slippage: " + DoubleToString(slippage, 2) + " pips");
+    }
+  }
+}
+// CalculateFHVV
+double CalculateFHVV(ENUM_TIMEFRAMES tf) {
+  datetime FCVP_earliest;
+  if (!SeriesInfoInteger(_Symbol, tf, SERIES_FIRSTDATE, FCVP_earliest)) {
+    Print("SeriesInfoInteger failed for TF ", EnumToString(tf));
+    return 0.0;
+  }
+  long FCVP_available_secs = TimeCurrent() - FCVP_earliest;
+  int FCVP_available_days = (int)(FCVP_available_secs / 86400);
+  int FCVP_effective_lookback = MathMin(FCVP_LookbackDays, FCVP_available_days);
+  if (FCVP_effective_lookback < FCVP_MIN_LOOKBACK_DAYS) {
+    if (FCVP_DebugMode) Print("Warning: Available days ", FCVP_available_days, " < min for TF ", EnumToString(tf));
+    return 0.0; // Trigger fallback
+  } else if (FCVP_effective_lookback < FCVP_LookbackDays && FCVP_DebugMode) {
+    Print("Adjusted lookback to ", FCVP_effective_lookback, " days for TF ", EnumToString(tf));
+  }
+  datetime FCVP_start_time = (datetime)(TimeCurrent() - (long)FCVP_effective_lookback * 86400LL);
+  MqlRates FCVP_tf_rates[];
+  int FCVP_copied_tf = CopyRates(_Symbol, tf, FCVP_start_time, TimeCurrent(), FCVP_tf_rates);
+  if (FCVP_copied_tf <= 0) {
+    Print("CopyRates failed for TF ", EnumToString(tf));
+    return 0.0;
+  }
+  ArraySetAsSeries(FCVP_tf_rates, true);
+  double FCVP_acr_sum = 0.0;
+  int FCVP_day_count = 0;
+  datetime FCVP_loop_day = 0;
+  double FCVP_daily_sum = 0.0;
+  int FCVP_daily_count = 0;
+  for (int i = ArraySize(FCVP_tf_rates) - 1; i >= 0; i--) {
+    datetime FCVP_time = FCVP_tf_rates[i].time;
+    MqlDateTime FCVP_dt;
+    TimeToStruct(FCVP_time, FCVP_dt);
+    datetime FCVP_day = FCVP_time - (FCVP_time % 86400);
+    if (FCVP_day != FCVP_loop_day) {
+      if (FCVP_daily_count > 0) {
+        FCVP_acr_sum += FCVP_daily_sum / FCVP_daily_count;
+        FCVP_day_count++;
+      }
+      FCVP_loop_day = FCVP_day;
+      FCVP_daily_sum = 0.0;
+      FCVP_daily_count = 0;
+    }
+    int FCVP_hour = FCVP_dt.hour + (FCVP_UseBrokerCST ? 0 : FCVP_TimeOffset);
+    if (FCVP_hour < 0) FCVP_hour += 24;
+    if (FCVP_hour >= 24) FCVP_hour -= 24;
+    if (FCVP_hour >= FCVP_SessionStartHour && FCVP_hour < FCVP_SessionEndHour) {
+      FCVP_daily_sum += FCVP_tf_rates[i].high - FCVP_tf_rates[i].low;
+      FCVP_daily_count++;
+    }
+  }
+  if (FCVP_daily_count > 0) {
+    FCVP_acr_sum += FCVP_daily_sum / FCVP_daily_count;
+    FCVP_day_count++;
+  }
+  return (FCVP_day_count > 0) ? FCVP_acr_sum / FCVP_day_count : 0.0;
+}
+// CalculateVega
+double CalculateVega() {
+  long FCVP_current_vol = FCVP_rates[0].tick_volume;
+  long FCVP_avg_vol = 0;
+  for (int i = 1; i <= 20; i++) {
+    if (i >= ArraySize(FCVP_rates)) break;
+    FCVP_avg_vol += FCVP_rates[i].tick_volume;
+  }
+  FCVP_avg_vol /= 20;
+  double FCVP_ratio = (FCVP_avg_vol > 0) ? (double)FCVP_current_vol / FCVP_avg_vol : 1.0;
+  if (FCVP_ratio > FCVP_VegaThreshold) FCVP_ratio *= 1.2;
+  static double FCVP_ema_vega = 1.0;
+  FCVP_ema_vega = FCVP_ema_vega * 0.9 + FCVP_ratio * 0.1;
+  return FCVP_ema_vega;
+}
+// CalculateBiasEnsemble
+double CalculateBiasEnsemble() {
+  double FCVP_rsi[1], FCVP_macd[1], FCVP_ema[1];
+  if (CopyBuffer(FCVP_rsi_handle, 0, 0, 1, FCVP_rsi) <= 0 ||
+      CopyBuffer(FCVP_macd_handle, 0, 0, 1, FCVP_macd) <= 0 ||
+      CopyBuffer(FCVP_ema_handle, 0, 0, 1, FCVP_ema) <= 0) return 0.0;
+  double FCVP_close = FCVP_rates[0].close;
+  if (TimeCurrent() - FCVP_last_slope_time > 5) {
+    FCVP_cached_slope = LinearRegressionSlope();
+    FCVP_last_slope_time = TimeCurrent();
+  }
+  double features[];
+  ArrayResize(features, 5);
+  features[0] = (FCVP_rsi[0] > 50) ? 1.0 : 0.0;
+  features[1] = (FCVP_macd[0] > 0) ? 1.0 : 0.0;
+  features[2] = (FCVP_close > FCVP_ema[0]) ? 1.0 : 0.0;
+  features[3] = (FCVP_close > FCVP_VWAP_Current) ? 1.0 : 0.0;
+  features[4] = (FCVP_cached_slope > 0) ? 1.0 : 0.0;
+  double ml_bias = PredictBias(features);
+  return (ml_bias * 2.0 - 1.0); // Scale to -1 to 1
+}
+// PredictBias (ML weights from torch)
+double PredictBias(double &features[]) {
+  if (ArraySize(features) != 5) return 0.5;
+  double sum = 0.0;
+  sum += features[0] * 0.248463;
+  sum += features[1] * 0.271533;
+  sum += features[2] * 0.269685;
+  sum += features[3] * 0.286978;
+  sum += features[4] * 0.294114;
+  sum += -0.466735;
+  return 1.0 / (1.0 + MathExp(-sum)); // Sigmoid
+}
+// LinearRegressionSlope
+double LinearRegressionSlope() {
+  int FCVP_period = 14;
+  if (ArraySize(FCVP_rates) < FCVP_period) return 0.0;
+  double FCVP_x_sum = 0.0, FCVP_y_sum = 0.0, FCVP_xy_sum = 0.0, FCVP_x2_sum = 0.0;
+  for (int i = 0; i < FCVP_period; i++) {
+    double FCVP_x = (double)i;
+    double FCVP_y = FCVP_rates[i].close;
+    FCVP_x_sum += FCVP_x;
+    FCVP_y_sum += FCVP_y;
+    FCVP_xy_sum += FCVP_x * FCVP_y;
+    FCVP_x2_sum += FCVP_x * FCVP_x;
+  }
+  double FCVP_n = (double)FCVP_period;
+  return (FCVP_n * FCVP_xy_sum - FCVP_x_sum * FCVP_y_sum) / (FCVP_n * FCVP_x2_sum - FCVP_x_sum * FCVP_x_sum);
+}
+// CalculateHurst
+double CalculateHurst() {
+  int FCVP_period = FCVP_HurstPeriod;
+  if (ArraySize(FCVP_rates) < FCVP_period + 1) return 0.5;
+  double FCVP_logs[];
+  ArrayResize(FCVP_logs, FCVP_period);
+  for (int i = 0; i < FCVP_period; i++) {
+    if (FCVP_rates[i + 1].close <= 0.0) return 0.5;
+    FCVP_logs[i] = MathLog(FCVP_rates[i].close / FCVP_rates[i + 1].close);
+  }
+  double FCVP_mean = ArrayAvg(FCVP_logs);
+  double FCVP_cum[];
+  ArrayResize(FCVP_cum, FCVP_period);
+  FCVP_cum[0] = FCVP_logs[0] - FCVP_mean;
+  for (int i = 1; i < FCVP_period; i++) {
+    FCVP_cum[i] = FCVP_cum[i - 1] + FCVP_logs[i] - FCVP_mean;
+  }
+  int FCVP_max_idx = ArrayMaximum(FCVP_cum);
+  int FCVP_min_idx = ArrayMinimum(FCVP_cum);
+  double FCVP_R = FCVP_cum[FCVP_max_idx] - FCVP_cum[FCVP_min_idx];
+  double FCVP_S = StdDev(FCVP_logs);
+  if (FCVP_S <= 0.0) return 0.5;
+  double FCVP_RS = FCVP_R / FCVP_S;
+  if (FCVP_RS <= 0.0) return 0.5;
+  return MathLog(FCVP_RS) / MathLog((double)FCVP_period / 2.0);
+  // Future: Offload to DLL for multi-core
+}
+// CalculateGARCHProxy
+double CalculateGARCHProxy() {
+  int FCVP_period = FCVP_GARCHPeriod;
+  if (ArraySize(FCVP_rates) < FCVP_period + 1) return 0.0001;
+  double FCVP_lambda = 0.94;
+  double FCVP_ewma = 0.0;
+  for (int i = FCVP_period - 1; i >= 0; i--) {
+    if (FCVP_rates[i + 1].close <= 0.0) continue;
+    double FCVP_ret = (FCVP_rates[i].close - FCVP_rates[i + 1].close) / FCVP_rates[i + 1].close;
+    double FCVP_sq = FCVP_ret * FCVP_ret;
+    FCVP_ewma = FCVP_lambda * FCVP_ewma + (1 - FCVP_lambda) * FCVP_sq;
+  }
+  if (FCVP_ewma <= 0.0) FCVP_ewma = 0.0001;
+  return MathSqrt(FCVP_ewma);
+  // Future: Offload to DLL for multi-core
+}
+// CalculateForesightScore
+double CalculateForesightScore() {
+  return 0.5 * FCVP_Hurst + 0.3 * (1.0 - FCVP_GARCH_Vol) + 0.2 * MathAbs(FCVP_Bias);
+}
+// CalculateDualBands
+void CalculateDualBands() {
+  double FCVP_close = FCVP_rates[0].close;
+  double FCVP_proj = FCVP_FHVV * FCVP_Vega * 3.0;
+  FCVP_ACH = FCVP_close + FCVP_proj + FCVP_Buffer;
+  FCVP_ACL = FCVP_close - FCVP_proj - FCVP_Buffer;
+}
+// DrawBands
+void DrawBands() {
+  string FCVP_ach_name = "ACH_Line";
+  ObjectCreate(ChartID(), FCVP_ach_name, OBJ_TREND, 0, FCVP_rates[0].time, FCVP_ACH, FCVP_rates[1].time, FCVP_ACH);
+  ObjectSetInteger(ChartID(), FCVP_ach_name, OBJPROP_COLOR, clrGreen);
+  ObjectSetInteger(ChartID(), FCVP_ach_name, OBJPROP_WIDTH, 2);
+  string FCVP_acl_name = "ACL_Line";
+  ObjectCreate(ChartID(), FCVP_acl_name, OBJ_TREND, 0, FCVP_rates[0].time, FCVP_ACL, FCVP_rates[1].time, FCVP_ACL);
+  ObjectSetInteger(ChartID(), FCVP_acl_name, OBJPROP_COLOR, clrRed);
+  ObjectSetInteger(ChartID(), FCVP_acl_name, OBJPROP_WIDTH, 2);
+  string FCVP_fhvv_label = "FHVV_Label";
+  ObjectCreate(ChartID(), FCVP_fhvv_label, OBJ_LABEL, 0, 0, 0);
+  ObjectSetString(ChartID(), FCVP_fhvv_label, OBJPROP_TEXT, "FHVV: " + DoubleToString(FCVP_FHVV, 5));
+  ObjectSetInteger(ChartID(), FCVP_fhvv_label, OBJPROP_CORNER, CORNER_LEFT_UPPER);
+  ObjectSetInteger(ChartID(), FCVP_fhvv_label, OBJPROP_XDISTANCE, 10);
+  ObjectSetInteger(ChartID(), FCVP_fhvv_label, OBJPROP_YDISTANCE, 10);
+}
+// DrawEntryArrow
+void DrawEntryArrow(bool isBuy) {
+  string FCVP_name = "EntryArrow_" + IntegerToString(TimeCurrent());
+  int FCVP_code = isBuy ? 233 : 234;
+  ObjectCreate(ChartID(), FCVP_name, OBJ_ARROW, 0, FCVP_rates[0].time, FCVP_rates[0].close);
+  ObjectSetInteger(ChartID(), FCVP_name, OBJPROP_ARROWCODE, FCVP_code);
+  ObjectSetInteger(ChartID(), FCVP_name, OBJPROP_COLOR, isBuy ? clrBlue : clrRed);
+}
+// CalculateFearScore
+double CalculateFearScore() {
+  double FCVP_atr = GetATR();
+  double FCVP_vol_anomaly = (FCVP_Vega > 1.3) ? FCVP_Vega : 1.0;
+  double FCVP_hv = FCVP_FHVV;
+  double FCVP_iv = FCVP_GARCH_Vol;
+  double FCVP_fear = 0.4 * FCVP_atr + 0.3 * FCVP_vol_anomaly + 0.2 * FCVP_hv + 0.1 * FCVP_iv;
+  return (FCVP_fear > FCVP_FearThreshold) ? FCVP_FearThreshold : FCVP_fear;
+}
+// GetATR
+double GetATR() {
+  double FCVP_atr[1];
+  if (CopyBuffer(FCVP_atr_handle, 0, 0, 1, FCVP_atr) <= 0) return FCVP_FHVV;
+  return FCVP_atr[0];
+}
+// ScaledLotSize
+double ScaledLotSize(double sl_distance) {
+  double FCVP_balance = AccountInfoDouble(ACCOUNT_BALANCE);
+  double FCVP_risk_amount = FCVP_balance * (FCVP_RiskPercent / 100.0);
+  double FCVP_base_lot = NormalizeDouble(FCVP_risk_amount / (sl_distance / _Point * FCVP_pip_value), 2);
+  double FCVP_win_rate = (FCVP_wins + FCVP_losses > 0) ? (double)FCVP_wins / (FCVP_wins + FCVP_losses) : 0.5;
+  double FCVP_lot = FCVP_base_lot * (0.5 + FCVP_win_rate);
+  return MathMax(FCVP_lot, SymbolInfoDouble(_Symbol, SYMBOL_VOLUME_MIN));
+}
+// UpdateTrailingStops
+void UpdateTrailingStops() {
+  CTrade FCVP_trade;
+  double FCVP_bid = SymbolInfoDouble(_Symbol, SYMBOL_BID);
+  double FCVP_ask = SymbolInfoDouble(_Symbol, SYMBOL_ASK);
+  double FCVP_min_distance = FCVP_stop_level * _Point + _Point;
+  double FCVP_atr = GetATR();
+  double FCVP_breakeven = FCVP_BreakevenPips * _Point;
+  double FCVP_trail_step = FCVP_TrailStep * _Point;
+  for (int i = PositionsTotal() - 1; i >= 0; i--) {
+    ulong FCVP_ticket = PositionGetTicket(i);
+    if (FCVP_ticket == 0) continue;
+    if (PositionGetString(POSITION_SYMBOL) != _Symbol) continue;
+    datetime FCVP_open_time = (datetime)PositionGetInteger(POSITION_TIME);
+    if (TimeCurrent() - FCVP_open_time < 30) continue; // Min hold 30s
+    long FCVP_type = PositionGetInteger(POSITION_TYPE);
+    double FCVP_open = PositionGetDouble(POSITION_PRICE_OPEN);
+    double FCVP_profit = PositionGetDouble(POSITION_PROFIT);
+    double FCVP_current_sl = PositionGetDouble(POSITION_SL);
+    double FCVP_current_tp = PositionGetDouble(POSITION_TP);
+    double FCVP_new_sl = FCVP_current_sl;
+    if (FCVP_UseVirtualSL) {
+      double FCVP_current_price = (FCVP_type == POSITION_TYPE_BUY) ? FCVP_bid : FCVP_ask;
+      if ((FCVP_type == POSITION_TYPE_BUY && FCVP_current_price <= FCVP_current_sl) ||
+          (FCVP_type == POSITION_TYPE_SELL && FCVP_current_price >= FCVP_current_sl)) {
+        FCVP_trade.PositionClose(FCVP_ticket);
+        continue;
+      }
+    }
+    double FCVP_rr_dist = (FCVP_type == POSITION_TYPE_BUY ? FCVP_bid - FCVP_open : FCVP_open - FCVP_ask);
+    if (FCVP_rr_dist > FCVP_atr * 1.0) { // Partial at 1:1 RR
+      double FCVP_close_lot = PositionGetDouble(POSITION_VOLUME) * (FCVP_PartialClosePct / 100.0);
+      FCVP_trade.PositionClosePartial(FCVP_ticket, FCVP_close_lot);
+    }
+    if (FCVP_profit > FCVP_breakeven && FCVP_current_sl == 0.0) {
+      FCVP_new_sl = (FCVP_type == POSITION_TYPE_BUY) ? FCVP_open + _Point : FCVP_open - _Point;
+    }
+    double FCVP_trail_dist = 0.0;
+    if (StringCompare(FCVP_TrailingType, "ATR") == 0) {
+      FCVP_trail_dist = FCVP_atr;
+    } else if (StringCompare(FCVP_TrailingType, "Fixed") == 0) {
+      FCVP_trail_dist = 20 * _Point;
+    } else if (StringCompare(FCVP_TrailingType, "Swing") == 0) {
+      FCVP_trail_dist = (FCVP_type == POSITION_TYPE_BUY) ? GetSwingLow(5) : GetSwingHigh(5);
+    } else if (StringCompare(FCVP_TrailingType, "PSAR") == 0) {
+      FCVP_new_sl = GetPSAR();
+    } else if (StringCompare(FCVP_TrailingType, "Chandelier") == 0) {
+      if (FCVP_profit > FCVP_TrailAfterPips * _Point) {
+        double FCVP_chandelier = (FCVP_type == POSITION_TYPE_BUY) ? GetSwingHigh(22) - FCVP_atr * FCVP_ChandelierMulti : GetSwingLow(22) + FCVP_atr * FCVP_ChandelierMulti;
+        FCVP_new_sl = (FCVP_type == POSITION_TYPE_BUY) ? FCVP_chandelier : FCVP_chandelier;
+      }
+    }
+    if (FCVP_profit > FCVP_trail_dist) {
+      if (FCVP_type == POSITION_TYPE_BUY) {
+        FCVP_new_sl = FCVP_bid - FCVP_trail_dist;
+      } else {
+        FCVP_new_sl = FCVP_ask + FCVP_trail_dist;
+      }
+    }
+    FCVP_new_sl = NormalizeDouble(FCVP_new_sl, _Digits);
+    if (FCVP_type == POSITION_TYPE_BUY) {
+      FCVP_new_sl = MathMin(FCVP_new_sl, FCVP_bid - FCVP_min_distance);
+      if (FCVP_new_sl > FCVP_current_sl + FCVP_trail_step) {
+        FCVP_trade.PositionModify(FCVP_ticket, FCVP_new_sl, FCVP_current_tp);
+      }
+    } else {
+      FCVP_new_sl = MathMax(FCVP_new_sl, FCVP_ask + FCVP_min_distance);
+      if (FCVP_new_sl < FCVP_current_sl - FCVP_trail_step || FCVP_current_sl == 0) {
+        FCVP_trade.PositionModify(FCVP_ticket, FCVP_new_sl, FCVP_current_tp);
+      }
+    }
+    bool FCVP_pyramid_condition = FCVP_profit > FCVP_PyramidMinPips * _Point && FCVP_Hurst > FCVP_HurstThreshold;
+    if (FCVP_pyramid_condition) {
+      PyramidOnWinner(FCVP_ticket);
+    } else if (FCVP_DebugMode) {
+      Print("Pyramid skipped: profit=", DoubleToString(FCVP_profit / _Point, 0), ", Hurst=", DoubleToString(FCVP_Hurst, 2));
+    }
+    if (CalculateForesightScore() < 0.4) FCVP_trade.PositionClose(FCVP_ticket);
+  }
+}
+// GetSwingHigh
+double GetSwingHigh(int bars) {
+  if (bars < 3 || ArraySize(FCVP_rates) < bars) return 0.0;
+  double high = 0.0;
+  for (int i = 1; i <= bars; i++) {
+    high = MathMax(high, FCVP_rates[i].high);
+  }
+  return high;
+}
+// GetSwingLow
+double GetSwingLow(int bars) {
+  if (bars < 3 || ArraySize(FCVP_rates) < bars) return 0.0;
+  double low = DBL_MAX;
+  for (int i = 1; i <= bars; i++) {
+    low = MathMin(low, FCVP_rates[i].low);
+  }
+  return low;
+}
+// GetPSAR
+double GetPSAR() {
+  double FCVP_psar[1];
+  if (CopyBuffer(FCVP_psar_handle, 0, 0, 1, FCVP_psar) <= 0) return 0.0;
+  return FCVP_psar[0];
+}
+// IsTradingTime
+bool IsTradingTime() {
+  MqlDateTime FCVP_dt;
+  TimeToStruct(TimeCurrent(), FCVP_dt);
+  int FCVP_hour = FCVP_dt.hour + (FCVP_UseBrokerCST ? 0 : FCVP_TimeOffset);
+  if (FCVP_hour < 0) FCVP_hour += 24;
+  if (FCVP_hour >= 24) FCVP_hour -= 24;
+  bool FCVP_in_session = (FCVP_hour >= FCVP_SessionStartHour && FCVP_hour < FCVP_SessionEndHour);
+  if (FCVP_DebugMode && TimeCurrent() - FCVP_last_entry_debug > 300) {
+    Print("Trading time check: ", FCVP_in_session ? "Yes" : "No", " (Hour: ", FCVP_hour, ")");
+    FCVP_last_entry_debug = TimeCurrent();
+  }
+  return FCVP_in_session;
+}
+// IsPastSessionEnd15Min
+bool IsPastSessionEnd15Min() {
+  MqlDateTime FCVP_dt;
+  TimeToStruct(TimeCurrent(), FCVP_dt);
+  int FCVP_hour = FCVP_dt.hour + FCVP_TimeOffset;
+  if (FCVP_hour < 0) FCVP_hour += 24;
+  if (FCVP_hour >= 24) FCVP_hour -= 24;
+  int FCVP_min = FCVP_dt.min;
+  return (FCVP_hour > FCVP_SessionEndHour) || (FCVP_hour == FCVP_SessionEndHour && FCVP_min >= 15);
+}
+// IsHighVolPause
+bool IsHighVolPause() {
+  double FCVP_current_range = FCVP_rates[0].high - FCVP_rates[0].low;
+  bool FCVP_high_vol = FCVP_current_range > 3.0 * FCVP_FHVV;
+  bool FCVP_low_hurst = FCVP_Hurst < 0.5;
+  bool FCVP_swan = FCVP_GARCH_Vol > FCVP_GARCHPauseThreshold;
+  return FCVP_high_vol || FCVP_low_hurst || FCVP_swan;
+}
+// ArrayAvg
+double ArrayAvg(double &arr[]) {
+  double FCVP_sum = 0.0;
+  int FCVP_size = ArraySize(arr);
+  if (FCVP_size == 0) return 0.0;
+  for (int i = 0; i < FCVP_size; i++) FCVP_sum += arr[i];
+  return FCVP_sum / FCVP_size;
+}
+// StdDev
+double StdDev(double &arr[]) {
+  double FCVP_avg = ArrayAvg(arr);
+  double FCVP_sum = 0.0;
+  int FCVP_size = ArraySize(arr);
+  if (FCVP_size <= 1) return 0.0;
+  for (int i = 0; i < FCVP_size; i++) FCVP_sum += MathPow(arr[i] - FCVP_avg, 2);
+  return MathSqrt(FCVP_sum / (FCVP_size - 1));
+}
+// UpdateWinLoss
+void UpdateWinLoss() {
+  FCVP_wins = 0;
+  FCVP_losses = 0;
+  HistorySelect(0, TimeCurrent());
+  int FCVP_total = HistoryDealsTotal();
+  int FCVP_start = MathMax(FCVP_total - 100, 0);
+  for (int i = FCVP_start; i < FCVP_total; i++) {
+    ulong FCVP_ticket = HistoryDealGetTicket(i);
+    if (FCVP_ticket == 0) continue;
+    if (HistoryDealGetString(FCVP_ticket, DEAL_SYMBOL) != _Symbol) continue;
+    double FCVP_profit = HistoryDealGetDouble(FCVP_ticket, DEAL_PROFIT);
+    if (FCVP_profit > 0) FCVP_wins++;
+    else if (FCVP_profit < 0) FCVP_losses++;
+  }
+}
+// EnterTrade
+void EnterTrade(bool buy) {
+  if (FCVP_FHVV < 0.0005) {
+    if (FCVP_DebugMode) Print("Entry skipped: FHVV too low");
+    return;
+  }
+  CTrade FCVP_trade;
+  FCVP_trade.SetExpertMagicNumber(FCVP_next_magic++);
+  double FCVP_atr = GetATR();
+  double FCVP_sl_multi_adj = FCVP_SLMulti * (1.0 + FCVP_GARCH_Vol);
+  double FCVP_sl_distance = (FCVP_FixedSLPips > 0) ? FCVP_FixedSLPips * _Point : FCVP_atr * FCVP_sl_multi_adj;
+  double FCVP_tp_distance = (FCVP_FixedTPPips > 0) ? FCVP_FixedTPPips * _Point : FCVP_atr * FCVP_TPMulti;
+  double FCVP_entry = buy ? SymbolInfoDouble(_Symbol, SYMBOL_ASK) : SymbolInfoDouble(_Symbol, SYMBOL_BID);
+  double FCVP_sl = buy ? NormalizeDouble(FCVP_entry - FCVP_sl_distance, _Digits) : NormalizeDouble(FCVP_entry + FCVP_sl_distance, _Digits);
+  double FCVP_tp = (FCVP_FixedTPPips > 0) ? (buy ? NormalizeDouble(FCVP_entry + FCVP_tp_distance, _Digits) : NormalizeDouble(FCVP_entry - FCVP_tp_distance, _Digits)) : 0.0; // 0 for trail-only
+  double FCVP_lot = ScaledLotSize(FCVP_sl_distance / _Point);
+  FCVP_trade.PositionOpen(_Symbol, buy ? ORDER_TYPE_BUY : ORDER_TYPE_SELL, FCVP_lot, 0.0, FCVP_sl, FCVP_tp, "Base");
+  if (FCVP_trade.ResultRetcode() == TRADE_RETCODE_DONE) {
+    DrawEntryArrow(buy);
+  }
+}
+// HasHighImpactNews
+bool HasHighImpactNews() {
+  MqlCalendarValue FCVP_values[];
+  datetime FCVP_from = TimeCurrent() - 86400LL;
+  datetime FCVP_to = TimeCurrent() + 86400LL;
+  if (!CalendarValueHistory(FCVP_values, FCVP_from, FCVP_to)) {
+    Print("CalendarValueHistory failed - no news data");
+    return false;
+  }
+  for (int i = 0; i < ArraySize(FCVP_values); i++) {
+    MqlCalendarEvent FCVP_event;
+    if (CalendarEventById(FCVP_values[i].event_id, FCVP_event)) {
+      if (FCVP_event.importance >= CALENDAR_IMPORTANCE_HIGH) {
+        MqlCalendarCountry FCVP_country;
+        if (CalendarCountryById(FCVP_event.country_id, FCVP_country)) {
+          if (StringCompare(FCVP_country.currency, "EUR") == 0 || StringCompare(FCVP_country.currency, "USD") == 0) {
+            return true;
+          }
         }
-    </script>
-    <style>
-        body { font-family: Arial, sans-serif; margin: 20px; background-color: #f4f4f4; }
-        h1, h2, h3 { color: #333; text-align: center; }
-        .input-section { background: white; padding: 20px; margin: 20px auto; max-width: 800px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
-        .input-group { display: flex; justify-content: space-around; margin: 10px 0; flex-wrap: wrap; }
-        input, select { padding: 5px; width: 120px; }
-        button { padding: 10px 20px; background: #4CAF50; color: white; border: none; cursor: pointer; margin: 2px; }
-        button:disabled { background: #ccc; cursor: not-allowed; }
-        .current-greeks { text-align: center; margin: 10px; font-weight: bold; }
-        .chart-container, .table-container, .chain-container { width: 100%; max-width: 800px; margin: 20px auto; background: white; padding: 20px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
-        canvas { max-height: 300px; width: 100% !important; height: 300px !important; }
-        table { border-collapse: collapse; width: 100%; margin: 20px 0; }
-        th, td { border: 1px solid #ddd; padding: 8px; text-align: center; }
-        th { background-color: #4CAF50; color: white; }
-        tr:nth-child(even) { background-color: #f2f2f2; }
-        tr:hover { background-color: #e8f5e8; }
-        .current-row { background-color: #fff3cd; font-weight: bold; }
-        .profit-row { background-color: #d4edda; }
-        .high-profit-row { background-color: #c3e6cb; }
-        .suggested-row { background-color: #add8e6; }
-        p { margin-top: 20px; font-size: 14px; color: #666; text-align: center; }
-        .legend { text-align: center; margin: 10px 0; }
-        .teal { color: teal; font-weight: bold; }
-        .orange { color: orange; font-weight: bold; }
-        .purple { color: purple; font-weight: bold; }
-        .error { color: purple; text-align: center; }
-        .disclaimer { background: #fff3cd; padding: 15px; margin: 20px auto; max-width: 800px; border: 1px solid #ffcc00; text-align: center; font-size: 12px; }
-        .finra-disclosure { background: #f8f9fa; padding: 20px; margin: 20px auto; max-width: 800px; border: 1px solid #ccc; font-size: 12px; text-align: left; }
-        .api-section { margin: 10px 0; text-align: center; }
-        .api-input { width: 200px; padding: 5px; }
-        .contango { color: teal; font-weight: bold; }
-        .backwardation { color: purple; font-weight: bold; }
-        .flat { color: orange; font-weight: bold; }
-        .fetch-success { color: teal; text-align: center; margin: 10px; }
-        .version { font-size: 12px; color: #666; text-align: center; margin-top: 20px; }
-        .api-note { font-size: 12px; color: #666; text-align: center; margin: 5px 0; }
-        .after-hours { color: orange; font-style: italic; text-align: center; margin: 5px 0; }
-        .tradingview-container { display: flex; justify-content: space-around; flex-wrap: wrap; max-width: 800px; margin: 20px auto; }
-        #tradingview_spx, #tradingview_vix { width: 300px; height: 300px; }
-        .tooltip { position: relative; display: inline-block; }
-        .tooltip .tooltiptext { 
-            visibility: hidden; width: 200px; background-color: #555; color: #fff; text-align: center; 
-            border-radius: 6px; padding: 5px; position: absolute; z-index: 1; bottom: 125%; 
-            left: 50%; margin-left: -100px; opacity: 0; transition: opacity 0.3s; 
-        }
-        .tooltip:hover .tooltiptext { visibility: visible; opacity: 1; }
-    </style>
-</head>
-<body>
-    <p style="text-align: center; font-size: 12px;">Copyright © SPXMASTERY.com Russell Clark All Rights Reserved</p>
-    <a href="#finra-disclosure" style="text-align: center; display: block; font-size: 12px;">View Full FINRA Options Disclosure</a>
-    <div class="disclaimer">
-        <strong>Disclaimer:</strong> This tool is for educational purposes only and is not financial advice. Options trading involves significant risks, including the potential loss of your entire investment or more. Calculations are theoretical (Black-Scholes model) and may not reflect actual market conditions. The creator (spxmastery) is not liable for any financial losses or damages resulting from use of this tool. Consult a qualified financial advisor before trading options.
-    </div>
-    <h1>SPX Mastery Long-Term Options Analyzer (Build 1, Version 28)</h1>
-    <div class="input-section">
-        <h2>Input Parameters (Click Update to Recalculate)</h2>
-        <div class="tooltip">
-            <span class="tooltiptext">Use: Fetch chain, select strike for greeks; DTE for timing. Monitor skew for vol plays.</span>
-            <h3>Usage Instructions</h3>
-        </div>
-        <div class="api-section">
-            <label>API Key: <input id="apiKey" type="password" class="api-input" placeholder="Enter Polygon Key" title="Polygon API key for live SPX/VIX/chain data"></label>
-            <label>Provider: <select id="apiProvider" title="Select API provider (Polygon recommended for options)"><option value="polygon">Polygon</option><option value="alpha">Alpha Vantage</option><option value="finnhub">Finnhub</option></select></label>
-            <button id="fetchLiveBtn" onclick="fetchLiveData()" title="Fetch live SPX/VIX data">Fetch Live Data</button>
-            <button id="fetchChainBtn" onclick="fetchOptionsChain()" title="Fetch options chain for selected expiration">Fetch Options Chain</button>
-            <button id="testApiBtn" onclick="testApi()" title="Test API key connectivity">Test API</button>
-            <button id="refreshBtn" onclick="toggleRefresh()" title="Toggle auto-refresh every 60s">Auto-Refresh: Off</button>
-            <p class="api-note">Polygon tier: Indices/Options. Use for live SPX/VIX/chain. After-hours: Shows last close.</p>
-        </div>
-        <div class="input-group">
-            <label>SPX Price: <input id="spx" type="number" value="6550" step="0.01" title="Live SPX—fetches real-time (hours) or close (after)"></label>
-            <label>Strike (K): <input id="strike" type="number" value="7000" title="Option strike price (click chain row to auto-fill)"></label>
-            <label>Expiration (YYYY-MM-DD): <input id="expiration" type="date" value="2025-11-28" title="Option expiration date"></label>
-            <label>IV (%): <input id="iv" type="number" value="15" step="0.01" title="Implied volatility (live or manual)"></label>
-        </div>
-        <div class="input-group">
-            <label>Premium: <input id="premium" type="number" value="13.75" step="0.01" title="Option premium (mid-price from chain)"></label>
-            <label>Contracts: <input id="contracts" type="number" value="10" min="1" title="Number of contracts"></label>
-            <label>Risk-Free Rate (r %): <input id="r" type="number" value="3.8" step="0.01" title="Risk-free rate (e.g., Treasury yield)"></label>
-            <label>Dividend Yield (q %): <input id="q" type="number" value="1.3" step="0.01" title="SPX dividend yield"></label>
-        </div>
-        <div class="input-group">
-            <label>EDR Days: <input id="edrDays" type="number" value="30" step="1" title="Expected drawdown range days"></label>
-            <button id="edr30Btn" onclick="setEdrDays(30)" title="Set EDR to 30 days">30 Days</button>
-            <button id="edr60Btn" onclick="setEdrDays(60)" title="Set EDR to 60 days">60 Days</button>
-            <button id="edr90Btn" onclick="setEdrDays(90)" title="Set EDR to 90 days">90 Days</button>
-            <label>Custom EDR (%): <input id="customEdr" type="number" placeholder="Override" step="0.01" title="Override EDR range (%)"></label>
-        </div>
-        <div class="input-group">
-            <label>IV Source: <select id="ivSource" value="live" title="Live: Fetched IV; Manual: User input"><option value="live">Live</option><option value="manual">Manual</option></select></label>
-            <label>Option Type: <select id="optionType" title="Call or Put"><option value="call">Call</option><option value="put">Put</option></select></label>
-            <button id="updateBtn" onclick="updateAll()" title="Recalculate greeks and charts">Update</button>
-            <button id="proxyBtn" onclick="applyEtfProxy()" title="Use SPY/UVXY for SPX/VIX proxy">ETF Proxy</button>
-        </div>
-        <p id="afterHoursNote" class="after-hours" style="display: none;">After-Hours: Data is last close (4:00 PM EDT).</p>
-        <p id="contangoStatus"></p>
-        <div id="currentGreeks" class="current-greeks"></div>
-        <div id="dteForecast" class="table-container">
-            <h3>DTE Forecast (Theta Burn, Vega Sensitivity)</h3>
-            <table id="dteTable">
-                <thead><tr><th>DTE</th><th>Theta (Proj)</th><th>Vega (Proj)</th><th>Notes</th></tr></thead>
-                <tbody></tbody>
-            </table>
-        </div>
-        <div class="tradingview-container">
-            <div id="tradingview_spx"></div>
-            <div id="tradingview_vix"></div>
-        </div>
-    </div>
-    <div class="chain-container" id="chainContainer" style="display: none;">
-        <h3>Options Chain (Select Row for Strike/Premium/IV)</h3>
-        <table id="chainTable">
-            <thead><tr><th>Strike</th><th>Bid</th><th>Ask</th><th>Mid</th><th>IV (%)</th><th>Delta</th><th>Gamma</th><th>Theta</th><th>Vega</th><th>Skew (%)</th></tr></thead>
-            <tbody></tbody>
-        </table>
-        <p>Suggested: Highlighted rows have delta 0.4-0.6 (balanced for vol plays/short-term trades).</p>
-    </div>
-    <div class="table-container">
-        <h2>Position Analysis</h2>
-        <table id="positionTable">
-            <thead><tr><th>Scenario</th><th>SPX Needed</th><th>Delta</th><th>Gamma</th><th>Theta</th><th>Vega</th><th>Price</th><th>P/L ($)</th></tr></thead>
-            <tbody></tbody>
-        </table>
-    </div>
-    <div class="chart-container">
-        <h2>Greeks Charts (Blue: Value, Teal: Good Threshold, Purple: Warning Threshold, Vertical: Current SPX)</h2>
-        <div id="chartError" class="error" style="display: none;"></div>
-        <h3>Delta</h3>
-        <canvas id="deltaChart"></canvas>
-        <h3>Gamma</h3>
-        <canvas id="gammaChart"></canvas>
-        <h3>Theta</h3>
-        <canvas id="thetaChart"></canvas>
-        <h3>Vega</h3>
-        <canvas id="vegaChart"></canvas>
-        <p class="legend"><span class="teal">Favorable</span> | <span class="orange">Caution</span> | <span class="purple">Risky</span></p>
-    </div>
-    <script src="https://s3.tradingview.com/tv.js"></script>
-    <script>
-        new TradingView.widget({
-            "container_id": "tradingview_spx",
-            "width": 300,
-            "height": 300,
-            "symbol": "US500",
-            "interval": "D",
-            "timezone": "America/New_York",
-            "theme": "light",
-            "style": "1",
-            "locale": "en",
-            "toolbar_bg": "#f1f3f6",
-            "enable_publishing": false,
-            "allow_symbol_change": true,
-            "studies": ["STD;VIX"]
-        });
-        new TradingView.widget({
-            "container_id": "tradingview_vix",
-            "width": 300,
-            "height": 300,
-            "symbol": "CBOE:VIX",
-            "interval": "D",
-            "timezone": "America/New_York",
-            "theme": "light",
-            "style": "1",
-            "locale": "en",
-            "toolbar_bg": "#f1f3f6",
-            "enable_publishing": false,
-            "allow_symbol_change": true
-        });
-    </script>
-    <script>
-        console.log('SCRIPT_PARSED: Ready [Timestamp: ' + new Date().toISOString() + ']');
-        let dataSource = 'live';
-        let charts = {};
-        let interval;
-        const holidays = ['2025-09-01', '2025-11-27', '2025-12-25'];
-        function normCDF(x) {
-            try {
-                if (typeof x !== 'number' || isNaN(x)) throw new Error('Invalid input: x must be a number');
-                const t = 1 / (1 + 0.2316419 * Math.abs(x));
-                const d = 0.3989423 * Math.exp(-(x ** 2) / 2);
-                let prob = d * t * (0.3193815 + t * (-0.3565638 + t * (1.781478 + t * (-1.821256 + t * 1.330274))));
-                if (x > 0) return 1 - prob;
-                return prob;
-            } catch (e) {
-                console.error('NORM_CDF_ERROR: ' + e.message + ' [Stack: ' + e.stack + '] [Timestamp: ' + new Date().toISOString() + ']');
-                return 0;
-            }
-        }
-        function blackScholesGreeks(S, K, T, r, sigma, q = 0, type = 'call') {
-            try {
-                if (typeof S !== 'number' || S <= 0 || isNaN(S)) throw new Error('Invalid S: Must be positive number');
-                if (typeof K !== 'number' || K <= 0 || isNaN(K)) throw new Error('Invalid K: Must be positive number');
-                if (typeof T !== 'number' || T <= 0 || isNaN(T)) throw new Error('Invalid T: Must be positive number');
-                if (typeof sigma !== 'number' || sigma <= 0 || isNaN(sigma)) throw new Error('Invalid sigma: Must be positive number');
-                if (typeof r !== 'number' || isNaN(r)) throw new Error('Invalid r: Must be a number');
-                if (typeof q !== 'number' || isNaN(q)) throw new Error('Invalid q: Must be a number');
-                if (T <= 0) return { price: type === 'call' ? Math.max(S - K, 0) : Math.max(K - S, 0), delta: 0, gamma: 0, theta: 0, vega: 0 };
-                const d1 = (Math.log(S / K) + (r - q + sigma ** 2 / 2) * T) / (sigma * Math.sqrt(T));
-                if (isNaN(d1)) throw new Error('Invalid d1: Numerical error in log or sqrt');
-                const d2 = d1 - sigma * Math.sqrt(T);
-                const nd1 = normCDF(d1);
-                const nd2 = normCDF(d2);
-                const nnd1 = normCDF(-d1);
-                const nnd2 = normCDF(-d2);
-                let price, delta, gamma, theta, vega;
-                if (type === 'call') {
-                    price = S * Math.exp(-q * T) * nd1 - K * Math.exp(-r * T) * nd2;
-                    delta = Math.exp(-q * T) * nd1;
-                } else {
-                    price = K * Math.exp(-r * T) * nnd2 - S * Math.exp(-q * T) * nnd1;
-                    delta = -Math.exp(-q * T) * nnd1;
-                }
-                gamma = Math.exp(-q * T) / (S * sigma * Math.sqrt(T)) * (1 / Math.sqrt(2 * Math.PI)) * Math.exp(-(d1 ** 2) / 2);
-                theta = -(S * Math.exp(-q * T) * (1 / Math.sqrt(2 * Math.PI)) * Math.exp(-(d1 ** 2) / 2) * sigma) / (2 * Math.sqrt(T)) - r * K * Math.exp(-r * T) * (type === 'call' ? nd2 : -nnd2) + q * S * Math.exp(-q * T) * (type === 'call' ? nd1 : -nnd1);
-                theta /= 252;
-                vega = S * Math.exp(-q * T) * Math.sqrt(T) * (1 / Math.sqrt(2 * Math.PI)) * Math.exp(-(d1 ** 2) / 2) / 100;
-                if (isNaN(price) || isNaN(delta) || isNaN(gamma) || isNaN(theta) || isNaN(vega)) {
-                    throw new Error('Numerical error: NaN in calculations');
-                }
-                return { price, delta, gamma, theta, vega };
-            } catch (e) {
-                showError('BLACK_SCHOLES_ERROR: Calculation failed [Error: ' + e.message + '] [Stack: ' + e.stack + '] [Timestamp: ' + new Date().toISOString() + ']');
-                return { price: 0, delta: 0, gamma: 0, theta: 0, vega: 0 };
-            }
-        }
-        function solveForS(targetPrice, currentS, K, T, r, sigma, q, type, contracts, tolerance = 0.01) {
-            try {
-                if (typeof targetPrice !== 'number' || isNaN(targetPrice) || targetPrice <= 0) throw new Error('Invalid targetPrice: Must be positive number');
-                if (typeof currentS !== 'number' || isNaN(currentS) || currentS <= 0) throw new Error('Invalid currentS: Must be positive number');
-                if (typeof K !== 'number' || isNaN(K) || K <= 0) throw new Error('Invalid K: Must be positive number');
-                if (typeof T !== 'number' || isNaN(T) || T <= 0) throw new Error('Invalid T: Must be positive number');
-                if (typeof sigma !== 'number' || isNaN(sigma) || sigma <= 0) throw new Error('Invalid sigma: Must be positive number');
-                if (typeof r !== 'number' || isNaN(r)) throw new Error('Invalid r: Must be a number');
-                if (typeof q !== 'number' || isNaN(q)) throw new Error('Invalid q: Must be a number');
-                if (typeof contracts !== 'number' || isNaN(contracts) || contracts <= 0) throw new Error('Invalid contracts: Must be positive number');
-                let low = currentS * 0.5;
-                let high = currentS * 1.5;
-                let mid;
-                let iterations = 0;
-                const maxIterations = 1000;
-                while (high - low > tolerance && iterations < maxIterations) {
-                    mid = (low + high) / 2;
-                    const greeks = blackScholesGreeks(mid, K, T, r, sigma, q, type);
-                    if (isNaN(greeks.price)) throw new Error('Invalid price from blackScholesGreeks');
-                    if (greeks.price * contracts * 100 < targetPrice * contracts * 100) low = mid;
-                    else high = mid;
-                    iterations++;
-                }
-                if (iterations >= maxIterations) throw new Error('Max iterations reached');
-                if (isNaN(mid)) throw new Error('Invalid mid value');
-                return mid;
-            } catch (e) {
-                showError('SOLVE_FOR_S_ERROR: Calculation failed [Error: ' + e.message + '] [Stack: ' + e.stack + '] [Timestamp: ' + new Date().toISOString() + ']');
-                return currentS;
-            }
-        }
-        function calculateDTE(expDate) {
-            try {
-                const today = new Date();
-                const exp = new Date(expDate);
-                if (isNaN(exp.getTime())) throw new Error('Invalid expiration date');
-                const T = (exp - today) / (1000 * 60 * 60 * 24) / 365;
-                if (T <= 0) throw new Error('T_ZERO: Expiration date has passed');
-                return Math.max(T, 0.0001);
-            } catch (e) {
-                showError('CALCULATE_DTE_ERROR: Invalid date [Error: ' + e.message + '] [Stack: ' + e.stack + '] [Timestamp: ' + new Date().toISOString() + ']');
-                return 0.0001;
-            }
-        }
-        function validateInputs() {
-            try {
-                const inputs = ['spx', 'strike', 'iv', 'premium', 'contracts', 'r', 'q', 'edrDays'];
-                for (let id of inputs) {
-                    const val = parseFloat(document.getElementById(id).value);
-                    if (isNaN(val) || val <= 0) {
-                        showError(`INPUT_ERROR: Invalid value for ${id.toUpperCase()} - must be positive number [Timestamp: ${new Date().toISOString()}]`);
-                        return false;
-                    }
-                }
-                const expDate = document.getElementById('expiration').value;
-                if (!expDate || isNaN(new Date(expDate).getTime())) {
-                    showError('INPUT_ERROR: Invalid expiration date [Timestamp: ' + new Date().toISOString() + ']');
-                    return false;
-                }
-                return true;
-            } catch (e) {
-                showError('VALIDATE_INPUTS_ERROR: Validation failed [Error: ' + e.message + '] [Stack: ' + e.stack + '] [Timestamp: ' + new Date().toISOString() + ']');
-                return false;
-            }
-        }
-        function showError(message) {
-            const errorDiv = document.getElementById('currentGreeks');
-            errorDiv.innerHTML += `<br><span class="error">${message}</span>`;
-            console.error(message);
-        }
-        async function timeoutPromise(promise, ms) {
-            return Promise.race([
-                promise,
-                new Promise((_, reject) => setTimeout(() => reject(new Error('FETCH_TIMEOUT: Request timed out after ' + ms + 'ms [Timestamp: ' + new Date().toISOString() + ']')), ms))
-            ]);
-        }
-        function toggleRefresh() {
-            const refreshBtn = document.getElementById('refreshBtn');
-            if (interval) {
-                clearInterval(interval);
-                interval = null;
-                refreshBtn.innerText = 'Auto-Refresh: Off';
-            } else {
-                interval = setInterval(fetchLiveData, 60000);
-                refreshBtn.innerText = 'Auto-Refresh: On';
-            }
-        }
-        async function fetchLiveData(attempt = 1, maxAttempts = 3) {
-            const fetchBtn = document.getElementById('fetchLiveBtn');
-            try {
-                console.log('API_CALL_INIT: Starting fetch [Timestamp: ' + new Date().toISOString() + ']');
-                fetchBtn.disabled = true;
-                fetchBtn.innerText = 'Fetching...';
-                if (!validateInputs()) throw new Error('VALIDATION_FAILED: Inputs invalid - check fields [Timestamp: ' + new Date().toISOString() + ']');
-                const provider = document.getElementById('apiProvider').value;
-                const apiKey = document.getElementById('apiKey').value;
-                if (!apiKey) throw new Error('API_ERROR_NO_KEY: Enter valid key [Timestamp: ' + new Date().toISOString() + ']');
-                console.log('API_FETCH_START: Provider ' + provider + ', Attempt ' + attempt + ' [Timestamp: ' + new Date().toISOString() + ']');
-                localStorage.setItem('apiKey', apiKey);
-                localStorage.setItem('apiProvider', provider);
-                const formatter = new Intl.DateTimeFormat('en-US', { hour: 'numeric', minute: 'numeric', timeZone: 'America/New_York', hour12: false });
-                const etParts = formatter.formatToParts(new Date());
-                const etHour = parseInt(etParts.find(p => p.type === 'hour').value);
-                const etMin = parseInt(etParts.find(p => p.type === 'minute').value);
-                const todayStr = new Date().toISOString().split('T')[0];
-                const isHoliday = holidays.includes(todayStr);
-                const isAfterHours = isHoliday || etHour < 9 || (etHour === 9 && etMin < 30) || etHour >= 16;
-                document.getElementById('afterHoursNote').style.display = isAfterHours ? 'block' : 'none';
-                document.getElementById('afterHoursNote').innerText = isAfterHours ? (isHoliday ? 'Market Closed (Holiday): Prev Close [ET Time: ' + etHour + ':' + etMin + ']' : 'After-Hours: Prev Close [ET Time: ' + etHour + ':' + etMin + ']') : 'Market Open [ET Time: ' + etHour + ':' + etMin + ']';
-                let spxPrice, vixSpot, atmIV;
-                if (provider === 'polygon') {
-                    const spxResp = await timeoutPromise(fetch(`https://api.polygon.io/v3/snapshot/indices?ticker=I:SPX&apiKey=${apiKey}`), 10000);
-                    if (!spxResp.ok) throw new Error('API_ERROR_SPX_HTTP_' + spxResp.status + ': Check API key permissions or Indices subscription [Timestamp: ' + new Date().toISOString() + ']');
-                    const spxData = await spxResp.json();
-                    if (!spxData.results?.[0]) throw new Error('API_ERROR_NO_SPX: Empty SPX response [Response: ' + JSON.stringify(spxData) + '] [Timestamp: ' + new Date().toISOString() + ']');
-                    spxPrice = isAfterHours ? spxData.results[0].prev_close : spxData.results[0].value;
-                    const vixResp = await timeoutPromise(fetch(`https://api.polygon.io/v3/snapshot/indices?ticker=I:VIX&apiKey=${apiKey}`), 10000);
-                    if (!vixResp.ok) throw new Error('API_ERROR_VIX_HTTP_' + vixResp.status + ': Check API key permissions or Indices subscription [Timestamp: ' + new Date().toISOString() + ']');
-                    const vixData = await vixResp.json();
-                    if (!vixData.results?.[0]) throw new Error('API_ERROR_NO_VIX: Empty VIX response [Response: ' + JSON.stringify(vixData) + '] [Timestamp: ' + new Date().toISOString() + ']');
-                    vixSpot = isAfterHours ? vixData.results[0].prev_close : vixData.results[0].value;
-                    const exp = document.getElementById('expiration').value;
-                    const type = document.getElementById('optionType').value.toLowerCase();
-                    const chainUrl = `https://api.polygon.io/v3/snapshot/options/SPX?expiration_date=${exp}&contract_type=${type}&limit=200&strike_price_gte=${spxPrice-500}&strike_price_lte=${spxPrice+500}&apiKey=${apiKey}`;
-                    const chainResp = await timeoutPromise(fetch(chainUrl), 10000);
-                    if (chainResp.ok) {
-                        const chainData = await chainResp.json();
-                        if (chainData.results?.length) {
-                            const atmOption = chainData.results.reduce((prev, curr) => 
-                                Math.abs(curr.details.strike_price - spxPrice) < Math.abs(prev.details.strike_price - spxPrice) ? curr : prev
-                            );
-                            atmIV = atmOption.implied_volatility * 100;
-                        }
-                    }
-                    console.log('Polygon SPX Response:', spxData, 'VIX Response:', vixData);
-                } else if (provider === 'alpha') {
-                    const spxUrl = `https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=^GSPC&apikey=${apiKey}`;
-                    const spxPromise = timeoutPromise(fetch(spxUrl), 10000);
-                    const spxResp = await spxPromise;
-                    if (!spxResp.ok) throw new Error('API_ERROR_ALPHA_SPX_HTTP_' + spxResp.status + ' [Timestamp: ' + new Date().toISOString() + ']');
-                    const spxData = await spxResp.json();
-                    if (!spxData['Global Quote']) throw new Error('API_ERROR_ALPHA_SPX: Invalid response [Response: ' + JSON.stringify(spxData) + '] [Timestamp: ' + new Date().toISOString() + ']');
-                    spxPrice = parseFloat(spxData['Global Quote']['05. price']);
-                    const vixUrl = `https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=^VIX&apikey=${apiKey}`;
-                    const vixPromise = timeoutPromise(fetch(vixUrl), 10000);
-                    const vixResp = await vixPromise;
-                    if (!vixResp.ok) throw new Error('API_ERROR_ALPHA_VIX_HTTP_' + vixResp.status + ' [Timestamp: ' + new Date().toISOString() + ']');
-                    const vixData = await vixResp.json();
-                    if (!vixData['Global Quote']) throw new Error('API_ERROR_ALPHA_VIX: Invalid response [Response: ' + JSON.stringify(vixData) + '] [Timestamp: ' + new Date().toISOString() + ']');
-                    vixSpot = parseFloat(vixData['Global Quote']['05. price']);
-                    atmIV = vixSpot;
-                } else {
-                    const spxUrl = `https://finnhub.io/api/v1/quote?symbol=^GSPC&token=${apiKey}`;
-                    const spxPromise = timeoutPromise(fetch(spxUrl), 10000);
-                    const spxResp = await spxPromise;
-                    if (!spxResp.ok) throw new Error('API_ERROR_FINNHUB_SPX_HTTP_' + spxResp.status + ' [Timestamp: ' + new Date().toISOString() + ']');
-                    const spxData = await spxResp.json();
-                    if (!spxData.c) throw new Error('API_ERROR_FINNHUB_SPX: Invalid response [Response: ' + JSON.stringify(spxData) + '] [Timestamp: ' + new Date().toISOString() + ']');
-                    spxPrice = spxData.c;
-                    const vixUrl = `https://finnhub.io/api/v1/quote?symbol=^VIX&token=${apiKey}`;
-                    const vixPromise = timeoutPromise(fetch(vixUrl), 10000);
-                    const vixResp = await vixPromise;
-                    if (!vixResp.ok) throw new Error('API_ERROR_FINNHUB_VIX_HTTP_' + vixResp.status + ' [Timestamp: ' + new Date().toISOString() + ']');
-                    const vixData = await vixResp.json();
-                    if (!vixData.c) throw new Error('API_ERROR_FINNHUB_VIX: Invalid response [Response: ' + JSON.stringify(vixData) + '] [Timestamp: ' + new Date().toISOString() + ']');
-                    vixSpot = vixData.c;
-                    atmIV = vixSpot;
-                }
-                if (!spxPrice || isNaN(spxPrice) || spxPrice <= 0) throw new Error('API_ERROR_INVALID_SPX: No valid SPX price [Timestamp: ' + new Date().toISOString() + ']');
-                document.getElementById('spx').value = spxPrice.toFixed(2);
-                if (document.getElementById('ivSource').value === 'live' && atmIV && !isNaN(atmIV) && atmIV > 0) {
-                    document.getElementById('iv').value = atmIV.toFixed(2);
-                } else if (document.getElementById('ivSource').value === 'live' && vixSpot && !isNaN(vixSpot) && vixSpot > 0) {
-                    const T = calculateDTE(document.getElementById('expiration').value);
-                    const calibratedIV = (vixSpot / 100) * Math.sqrt(30 / (T * 365));
-                    document.getElementById('iv').value = (calibratedIV * 100).toFixed(2);
-                }
-                dataSource = 'live';
-                const T = 79 / 365;
-                const fetchedGreeks = blackScholesGreeks(spxPrice, spxPrice, T, 0.038, (document.getElementById('iv').value / 100), 0.013, 'call');
-                const expectedDelta = 0.98;
-                let driftNote = '';
-                if (Math.abs(fetchedGreeks.delta - expectedDelta) > 0.05) {
-                    console.log('CALIBRATION_DRIFT: Delta ' + fetchedGreeks.delta.toFixed(2) + ' deviates >5% from expected ' + expectedDelta + ' [Timestamp: ' + new Date().toISOString() + ']');
-                    driftNote = ' (Drift detected - recalibrating)';
-                }
-                document.getElementById('notes').innerText = `Notes: Model calibrated to match: delta ~${fetchedGreeks.delta.toFixed(2)}, gamma ~${fetchedGreeks.gamma.toFixed(2)}, theta ~${fetchedGreeks.theta.toFixed(0)}, vega ~${fetchedGreeks.vega.toFixed(0)} at SPX ${spxPrice.toFixed(0)}${driftNote}. Fetch chain for contract selection (suggest delta 0.4-0.6). EDR 95% range (override blank for auto). Contango uses front VIX future/spot. Colors color-blind friendly. For short-term: Use DTE forecast for buy/sell timing (e.g., sell on high theta). Not financial advice.`;
-                let contangoStatus = 'Contango Unknown';
-                if (provider === 'polygon' && vixSpot && !isNaN(vixSpot) && vixSpot > 0) {
-                    const monthCodes = 'FGHJKMNQUVXZ';
-                    const m = new Date().getMonth();
-                    const y = new Date().getFullYear() % 10;
-                    const frontTicker = `X:VX${monthCodes[m]}${y}`;
-                    const futPromise = timeoutPromise(fetch(`https://api.polygon.io/v2/aggs/ticker/${frontTicker}/prev?apiKey=${apiKey}`), 10000);
-                    try {
-                        const futResp = await futPromise;
-                        if (!futResp.ok) throw new Error('FUTURES_404: Check tier or ticker [Suggest add Futures add-on] [Timestamp: ' + new Date().toISOString() + ']');
-                        const futData = await futResp.json();
-                        const futurePrice = futData.results?.[0]?.c;
-                        if (futurePrice && futurePrice > 0) {
-                            const ratio = futurePrice / vixSpot;
-                            if (ratio > 1.02) contangoStatus = `<span class="contango">Contango (${ratio.toFixed(2)}): Buy/Hold Favorable for Long-Term</span>`;
-                            else if (ratio < 0.98) contangoStatus = `<span class="backwardation">Backwardation (${ratio.toFixed(2)}): Vol Spike Risk - Short-Term/Cash Out</span>`;
-                            else contangoStatus = `<span class="flat">Flat (${ratio.toFixed(2)}): Neutral Market</span>`;
-                        } else {
-                            contangoStatus = `<span class="flat">Flat (Fallback: 1): Neutral Market</span>`;
-                        }
-                    } catch (e) {
-                        showError('FUTURES_ERROR: ' + e.message + ' [Stack: ' + e.stack + '] [Timestamp: ' + new Date().toISOString() + ']');
-                        contangoStatus = `<span class="flat">Flat (Fallback: 1): Neutral Market</span>`;
-                    }
-                }
-                document.getElementById('contangoStatus').innerHTML = contangoStatus;
-                document.getElementById('currentGreeks').innerHTML = `<span class="fetch-success">FETCH_SUCCESS: SPX/VIX/Contango Updated from ${provider.toUpperCase()} <strong>[Data: Live]</strong> [Timestamp: ${new Date().toISOString()}]</span>`;
-                updateAll();
-            } catch (e) {
-                showError('FETCH_LIVE_ERROR: ' + e.message + ' [Stack: ' + e.stack + '] [Attempt: ' + attempt + '/' + maxAttempts + '] [Timestamp: ' + new Date().toISOString() + ']');
-                if (attempt < maxAttempts) {
-                    setTimeout(() => fetchLiveData(attempt + 1), 2000);
-                } else {
-                    showError('FETCH_LIVE_FAILED_ALL: All retries failed. Using fallback data [Timestamp: ' + new Date().toISOString() + ']');
-                    dataSource = 'manual';
-                    if (isAfterHours) applyEtfProxy();
-                }
-            } finally {
-                fetchBtn.disabled = false;
-                fetchBtn.innerText = 'Fetch Live Data';
-            }
-        }
-        async function testApi() {
-            try {
-                const apiKey = document.getElementById('apiKey').value;
-                const provider = document.getElementById('apiProvider').value;
-                if (provider !== 'polygon') throw new Error('TEST_API_ERROR: Only for Polygon [Timestamp: ' + new Date().toISOString() + ']');
-                const testPromise = timeoutPromise(fetch(`https://api.polygon.io/v2/aggs/ticker/I:SPX/prev?apiKey=${apiKey}`), 10000);
-                const testResp = await testPromise;
-                if (!testResp.ok) throw new Error('TEST_API_HTTP_' + testResp.status + ': Check API key or Indices subscription [Timestamp: ' + new Date().toISOString() + ']');
-                const testData = await testResp.json();
-                showError('TEST_API_SUCCESS: Raw SPX Response - ' + JSON.stringify(testData) + ' [Timestamp: ' + new Date().toISOString() + ']');
-            } catch (e) {
-                showError('TEST_API_ERROR: ' + e.message + ' [Stack: ' + e.stack + '] [Timestamp: ' + new Date().toISOString() + ']');
-            }
-        }
-        async function fetchOptionsChain() {
-            try {
-                const apiKey = document.getElementById('apiKey').value;
-                const exp = document.getElementById('expiration').value;
-                const type = document.getElementById('optionType').value.toLowerCase();
-                const spxPrice = parseFloat(document.getElementById('spx').value);
-                if (!apiKey || !exp || isNaN(spxPrice)) throw new Error('FETCH_CHAIN_ERROR: Missing API key, expiration, or SPX price [Timestamp: ' + new Date().toISOString() + ']');
-                const url = `https://api.polygon.io/v3/snapshot/options/SPX?expiration_date=${exp}&contract_type=${type}&order=asc&limit=100&sort=strike_price&apiKey=${apiKey}`;
-                const promise = timeoutPromise(fetch(url), 10000);
-                const resp = await promise;
-                if (!resp.ok) throw new Error('FETCH_CHAIN_HTTP_' + resp.status + ': Check API key or Options subscription [Timestamp: ' + new Date().toISOString() + ']');
-                const data = await resp.json();
-                if (!data.results?.length) {
-                    showError('CHAIN_EMPTY: No options data - refine expiration or symbol filters [Response: ' + JSON.stringify(data) + '] [Timestamp: ' + new Date().toISOString() + ']');
-                    return;
-                }
-                console.log('Options Chain Response:', data);
-                const tbody = document.getElementById('chainTable').getElementsByTagName('tbody')[0];
-                tbody.innerHTML = '';
-                let atmIV = 0;
-                let atmOption = data.results.reduce((prev, curr) => 
-                    Math.abs(curr.details.strike_price - spxPrice) < Math.abs(prev.details.strike_price - spxPrice) ? curr : prev
-                );
-                atmIV = atmOption.implied_volatility * 100;
-                data.results = data.results.sort((a, b) => a.details.strike_price - b.details.strike_price);
-                const filteredResults = data.results.filter(opt => {
-                    if (type === 'call') {
-                        return opt.details.strike_price >= spxPrice - 50 && opt.details.strike_price <= spxPrice + 1000;
-                    } else {
-                        return opt.details.strike_price <= spxPrice + 50 && opt.details.strike_price >= spxPrice - 1000;
-                    }
-                });
-                filteredResults.forEach(opt => {
-                    const contract = opt.details || opt;
-                    const day = opt.day || {};
-                    const bid = day.bid_price || 'N/A';
-                    const ask = day.ask_price || 'N/A';
-                    const mid = (bid !== 'N/A' && ask !== 'N/A') ? ((bid + ask) / 2).toFixed(2) : 'N/A';
-                    const iv = (opt.implied_volatility * 100)?.toFixed(2) || 'N/A';
-                    const delta = opt.greeks?.delta?.toFixed(2) || 'N/A';
-                    const gamma = opt.greeks?.gamma?.toFixed(4) || 'N/A';
-                    const theta = opt.greeks?.theta?.toFixed(2) || 'N/A';
-                    const vega = opt.greeks?.vega?.toFixed(2) || 'N/A';
-                    if (isNaN(parseFloat(delta))) {
-                        showError('PARSE_NA: Off-hours data—retry live [Timestamp: ' + new Date().toISOString() + ']');
-                    }
-                    const skew = (parseFloat(iv) - atmIV).toFixed(2) || 'N/A';
-                    if (skew !== 'N/A' && parseFloat(skew) > 15) {
-                        showError('SKEW_WARNING: High skew (>15) - Buy OTM [Timestamp: ' + new Date().toISOString() + ']');
-                    }
-                    const row = document.createElement('tr');
-                    row.innerHTML = `<td>${opt.details.strike_price}</td><td>${bid}</td><td>${ask}</td><td>${mid}</td><td>${iv}</td><td>${delta}</td><td>${gamma}</td><td>${theta}</td><td>${vega}</td><td>${skew}</td>`;
-                    if (parseFloat(delta) >= 0.4 && parseFloat(delta) <= 0.6) row.className = 'suggested-row';
-                    row.onclick = () => {
-                        const cells = row.cells;
-                        document.getElementById('strike').value = cells[0].textContent;
-                        document.getElementById('premium').value = cells[3].textContent;
-                        document.getElementById('iv').value = cells[4].textContent;
-                        updateAll();
-                    };
-                    tbody.appendChild(row);
-                });
-                document.getElementById('chainContainer').style.display = 'block';
-                document.getElementById('currentGreeks').innerHTML = `<span class="fetch-success">FETCH_CHAIN_SUCCESS: Options chain updated <strong>[Data: Live]</strong> [Timestamp: ${new Date().toISOString()}]</span>`;
-            } catch (e) {
-                showError('FETCH_CHAIN_ERROR: ' + e.message + ' [Stack: ' + e.stack + '] [Timestamp: ' + new Date().toISOString() + ']');
-            }
-        }
-        async function applyEtfProxy() {
-            try {
-                const apiKey = document.getElementById('apiKey').value;
-                if (!apiKey) throw new Error('PROXY_ERROR_NO_KEY: Enter valid key [Timestamp: ' + new Date().toISOString() + ']');
-                const spxPromise = timeoutPromise(fetch(`https://api.polygon.io/v2/aggs/ticker/SPY/prev?apiKey=${apiKey}`), 10000);
-                const spxResp = await spxPromise;
-                if (!spxResp.ok) throw new Error('PROXY_ERROR_SPY_HTTP_' + spxResp.status + ': Check API key or subscription [Timestamp: ' + new Date().toISOString() + ']');
-                const spxData = await spxResp.json();
-                if (!spxData.results?.[0]?.c) throw new Error('PROXY_ERROR_NO_SPY: Empty SPY response [Response: ' + JSON.stringify(spxData) + '] [Timestamp: ' + new Date().toISOString() + ']');
-                const spxPrice = spxData.results[0].c * 10;
-                const vixPromise = timeoutPromise(fetch(`https://api.polygon.io/v2/aggs/ticker/UVXY/prev?apiKey=${apiKey}`), 10000);
-                const vixResp = await vixPromise;
-                if (!vixResp.ok) throw new Error('PROXY_ERROR_UVXY_HTTP_' + vixResp.status + ': Check API key or subscription [Timestamp: ' + new Date().toISOString() + ']');
-                const vixData = await vixResp.json();
-                if (!vixData.results?.[0]?.c) throw new Error('PROXY_ERROR_NO_UVXY: Empty UVXY response [Response: ' + JSON.stringify(vixData) + '] [Timestamp: ' + new Date().toISOString() + ']');
-                const vixSpot = vixData.results[0].c * 0.5;
-                document.getElementById('spx').value = spxPrice.toFixed(2);
-                if (document.getElementById('ivSource').value === 'live') {
-                    const T = calculateDTE(document.getElementById('expiration').value);
-                    const calibratedIV = (vixSpot / 100) * Math.sqrt(30 / (T * 365));
-                    document.getElementById('iv').value = (calibratedIV * 100).toFixed(2);
-                }
-                dataSource = 'proxy';
-                document.getElementById('currentGreeks').innerHTML = `<span class="fetch-success">PROXY_SUCCESS: SPX/VIX updated from ETF proxy <strong>[Data: Proxy]</strong> [Timestamp: ${new Date().toISOString()}]</span>`;
-                updateAll();
-            } catch (e) {
-                showError('PROXY_ERROR: ' + e.message + ' [Stack: ' + e.stack + '] [Timestamp: ' + new Date().toISOString() + ']');
-            }
-        }
-        function setEdrDays(days) {
-            try {
-                document.getElementById('edrDays').value = days;
-                updateAll();
-            } catch (e) {
-                showError('SET_EDR_DAYS_ERROR: Failed to set EDR days [Error: ' + e.message + '] [Stack: ' + e.stack + '] [Timestamp: ' + new Date().toISOString() + ']');
-            }
-        }
-        function updateAll() {
-            try {
-                if (!validateInputs()) return;
-                let spxPrice = parseFloat(document.getElementById('spx').value);
-                let sigma = document.getElementById('ivSource').value === 'live' && dataSource === 'live' ? parseFloat(document.getElementById('iv').value) / 100 : parseFloat(document.getElementById('iv').value) / 100 || 0.15;
-                const K = parseFloat(document.getElementById('strike').value) || spxPrice;
-                const T = calculateDTE(document.getElementById('expiration').value);
-                if (T <= 0.0001) {
-                    showError('T_ZERO: Expiration date has passed or invalid [Timestamp: ' + new Date().toISOString() + ']');
-                    return;
-                }
-                const r = parseFloat(document.getElementById('r').value) / 100;
-                const q = parseFloat(document.getElementById('q').value) / 100;
-                const premium = parseFloat(document.getElementById('premium').value);
-                const contracts = parseInt(document.getElementById('contracts').value);
-                const type = document.getElementById('optionType').value;
-                const edrDays = parseInt(document.getElementById('edrDays').value);
-                const customEdr = parseFloat(document.getElementById('customEdr').value) || (sigma * Math.sqrt(edrDays / 365) * 1.96 * 100);
-                const greeks = blackScholesGreeks(spxPrice, K, T, r, sigma, q, type);
-                const totalDelta = greeks.delta * contracts;
-                const totalGamma = greeks.gamma * contracts;
-                const totalTheta = greeks.theta * contracts;
-                const totalVega = greeks.vega * contracts;
-                const tbody = document.getElementById('positionTable').getElementsByTagName('tbody')[0];
-                tbody.innerHTML = '';
-                const scenarios = [
-                    { name: 'Current', S: spxPrice, mult: 1 },
-                    { name: 'Break Even', S: solveForS(premium, spxPrice, K, T, r, sigma, q, type, contracts), mult: 1 },
-                    { name: 'EDR 95% Up', S: spxPrice * (1 + customEdr / 100), mult: 1 },
-                    { name: 'EDR 95% Down', S: spxPrice * (1 - customEdr / 100), mult: 1 },
-                    { name: 'Profit Target', S: solveForS(premium * 2, spxPrice, K, T, r, sigma, q, type, contracts), mult: 2 },
-                    { name: 'High Profit', S: solveForS(premium * 3, spxPrice, K, T, r, sigma, q, type, contracts), mult: 3 }
-                ];
-                scenarios.forEach(sc => {
-                    const scS = typeof sc.S === 'number' && !isNaN(sc.S) ? sc.S : spxPrice;
-                    const scGreeks = blackScholesGreeks(scS, K, T, r, sigma, q, type);
-                    const pl = (scGreeks.price - premium) * contracts * 100;
-                    const row = document.createElement('tr');
-                    row.className = sc.name === 'Current' ? 'current-row' : (sc.mult === 2 ? 'profit-row' : (sc.mult === 3 ? 'high-profit-row' : ''));
-                    row.innerHTML = `<td>${sc.name}</td><td>${scS.toFixed(2)}</td><td>${(scGreeks.delta * contracts).toFixed(2)}</td><td>${(scGreeks.gamma * contracts).toFixed(4)}</td><td>${(scGreeks.theta * contracts).toFixed(2)}</td><td>${(scGreeks.vega * contracts).toFixed(2)}</td><td>${scGreeks.price.toFixed(2)}</td><td>${pl.toFixed(2)}</td>`;
-                    tbody.appendChild(row);
-                });
-                const dteTbody = document.getElementById('dteTable').getElementsByTagName('tbody')[0];
-                dteTbody.innerHTML = '';
-                const dteSteps = [T, T * 0.75, T * 0.5, T * 0.25];
-                dteSteps.forEach(dte => {
-                    const dteGreeks = blackScholesGreeks(spxPrice, K, dte, r, sigma, q, type);
-                    const row = document.createElement('tr');
-                    const notes = dteGreeks.theta * contracts < -600 ? 'Sell/Exit: High theta burn' : (dteGreeks.vega * contracts > 6000 ? 'Vol Sensitive: Monitor VIX' : '');
-                    row.innerHTML = `<td>${(dte * 365).toFixed(0)}</td><td>${(dteGreeks.theta * contracts).toFixed(2)}</td><td>${(dteGreeks.vega * contracts).toFixed(2)}</td><td>${notes}</td>`;
-                    dteTbody.appendChild(row);
-                });
-                if (charts.delta) charts.delta.destroy();
-                if (charts.gamma) charts.gamma.destroy();
-                if (charts.theta) charts.theta.destroy();
-                if (charts.vega) charts.vega.destroy();
-                const spxRange = Array.from({length: 21}, (_, i) => Math.max(1, spxPrice * (0.8 + i * 0.01)));
-                const deltas = Array.from({length: 21}, (_, i) => blackScholesGreeks(spxRange[i], K, T, r, sigma, q, type).delta);
-                const gammas = Array.from({length: 21}, (_, i) => blackScholesGreeks(spxRange[i], K, T, r, sigma, q, type).gamma);
-                const thetas = Array.from({length: 21}, (_, i) => blackScholesGreeks(spxRange[i], K, T, r, sigma, q, type).theta);
-                const vegas = Array.from({length: 21}, (_, i) => blackScholesGreeks(spxRange[i], K, T, r, sigma, q, type).vega);
-                const chartOptions = {
-                    scales: { 
-                        x: { 
-                            title: { display: true, text: 'SPX Price' }, 
-                            ticks: { callback: function(val) { return Math.round(val); } } 
-                        }, 
-                        y: { 
-                            title: { display: true }, 
-                            beginAtZero: false 
-                        }
-                    },
-                    plugins: { annotation: { annotations: { line: { type: 'line', xMin: spxPrice, xMax: spxPrice, borderColor: 'red', borderWidth: 2 } } } }
-                };
-                charts.delta = new Chart(document.getElementById('deltaChart').getContext('2d'), {
-                    type: 'line',
-                    data: {
-                        labels: spxRange,
-                        datasets: [
-                            { label: 'Delta', data: deltas, borderColor: 'blue', fill: false },
-                            { label: 'Teal: Favorable (0.4)', data: Array(spxRange.length).fill(0.4), borderColor: 'teal', borderDash: [5, 5], fill: false },
-                            { label: 'Purple: Warning (0.6)', data: Array(spxRange.length).fill(0.6), borderColor: 'purple', borderDash: [5, 5], fill: false }
-                        ]
-                    },
-                    options: {
-                        ...chartOptions,
-                        scales: { 
-                            ...chartOptions.scales,
-                            y: { ...chartOptions.scales.y, title: { display: true, text: 'Delta' }, suggestedMin: Math.min(...deltas) * 1.1, suggestedMax: Math.max(...deltas) * 1.1 }
-                        }
-                    }
-                });
-                charts.gamma = new Chart(document.getElementById('gammaChart').getContext('2d'), {
-                    type: 'line',
-                    data: {
-                        labels: spxRange,
-                        datasets: [
-                            { label: 'Gamma', data: gammas, borderColor: 'blue', fill: false },
-                            { label: 'Teal: Favorable (0.0005)', data: Array(spxRange.length).fill(0.0005), borderColor: 'teal', borderDash: [5, 5], fill: false },
-                            { label: 'Purple: Warning (0.001)', data: Array(spxRange.length).fill(0.001), borderColor: 'purple', borderDash: [5, 5], fill: false }
-                        ]
-                    },
-                    options: {
-                        ...chartOptions,
-                        scales: { 
-                            ...chartOptions.scales,
-                            y: { ...chartOptions.scales.y, title: { display: true, text: 'Gamma' }, suggestedMin: Math.min(...gammas) * 1.1, suggestedMax: Math.max(...gammas) * 1.1 }
-                        }
-                    }
-                });
-                charts.theta = new Chart(document.getElementById('thetaChart').getContext('2d'), {
-                    type: 'line',
-                    data: {
-                        labels: spxRange,
-                        datasets: [
-                            { label: 'Theta', data: thetas, borderColor: 'blue', fill: false },
-                            { label: 'Teal: Favorable (-1)', data: Array(spxRange.length).fill(-1), borderColor: 'teal', borderDash: [5, 5], fill: false },
-                            { label: 'Purple: Warning (-2)', data: Array(spxRange.length).fill(-2), borderColor: 'purple', borderDash: [5, 5], fill: false }
-                        ]
-                    },
-                    options: {
-                        ...chartOptions,
-                        scales: { 
-                            ...chartOptions.scales,
-                            y: { ...chartOptions.scales.y, title: { display: true, text: 'Theta' }, suggestedMin: Math.min(...thetas) * 1.1, suggestedMax: Math.max(...thetas) * 1.1 }
-                        }
-                    }
-                });
-                charts.vega = new Chart(document.getElementById('vegaChart').getContext('2d'), {
-                    type: 'line',
-                    data: {
-                        labels: spxRange,
-                        datasets: [
-                            { label: 'Vega', data: vegas, borderColor: 'blue', fill: false },
-                            { label: 'Teal: Favorable (4)', data: Array(spxRange.length).fill(4), borderColor: 'teal', borderDash: [5, 5], fill: false },
-                            { label: 'Purple: Warning (8)', data: Array(spxRange.length).fill(8), borderColor: 'purple', borderDash: [5, 5], fill: false }
-                        ]
-                    },
-                    options: {
-                        ...chartOptions,
-                        scales: { 
-                            ...chartOptions.scales,
-                            y: { ...chartOptions.scales.y, title: { display: true, text: 'Vega' }, suggestedMin: Math.min(...vegas) * 1.1, suggestedMax: Math.max(...vegas) * 1.1 }
-                        }
-                    }
-                });
-            } catch (e) {
-                showError('UPDATE_ALL_ERROR: ' + e.message + ' [Stack: ' + e.stack + '] [Timestamp: ' + new Date().toISOString() + ']');
-            }
-        }
-        window.onerror = function (msg, url, lineNo, columnNo, error) {
-            showError('GLOBAL_JS_ERROR: ' + msg + ' [Line: ' + lineNo + ', Col: ' + columnNo + '] [Error: ' + (error ? error.stack : '') + '] [Timestamp: ' + new Date().toISOString() + ']');
-            return false;
-        };
-        document.getElementById('apiKey').addEventListener('change', () => {
-            try {
-                localStorage.setItem('apiKey', document.getElementById('apiKey').value);
-                const formatter = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hour: 'numeric', minute: 'numeric', hour12: false });
-                const etParts = formatter.formatToParts(new Date());
-                const etHour = parseInt(etParts.find(p => p.type === 'hour').value);
-                const etMin = parseInt(etParts.find(p => p.type === 'minute').value);
-                const todayStr = new Date().toISOString().split('T')[0];
-                const isHoliday = holidays.includes(todayStr);
-                if (!isHoliday && (etHour > 9 || (etHour === 9 && etMin >= 30)) && etHour < 16) {
-                    fetchLiveData();
-                }
-            } catch (e) {
-                showError('API_KEY_CHANGE_ERROR: ' + e.message + ' [Stack: ' + e.stack + '] [Timestamp: ' + new Date().toISOString() + ']');
-            }
-        });
-        document.getElementById('ivSource').addEventListener('change', () => {
-            dataSource = document.getElementById('ivSource').value;
-            updateAll();
-        });
-        window.addEventListener('load', () => {
-            try {
-                console.log('JS_INIT_SUCCESS: Window loaded [Timestamp: ' + new Date().toISOString() + ']');
-                const savedKey = localStorage.getItem('apiKey');
-                const savedProvider = localStorage.getItem('apiProvider') || 'polygon';
-                if (savedKey) {
-                    document.getElementById('apiKey').value = savedKey;
-                    document.getElementById('apiProvider').value = savedProvider;
-                    const formatter = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hour: 'numeric', minute: 'numeric', hour12: false });
-                    const etParts = formatter.formatToParts(new Date());
-                    const etHour = parseInt(etParts.find(p => p.type === 'hour').value);
-                    const etMin = parseInt(etParts.find(p => p.type === 'minute').value);
-                    const todayStr = new Date().toISOString().split('T')[0];
-                    const isHoliday = holidays.includes(todayStr);
-                    if (!isHoliday && (etHour > 9 || (etHour === 9 && etMin >= 30)) && etHour < 16 && validateInputs()) {
-                        fetchLiveData();
-                    }
-                }
-                updateAll();
-            } catch (e) {
-                showError('LOAD_ERROR: ' + e.message + ' [Stack: ' + e.stack + '] [Timestamp: ' + new Date().toISOString() + ']');
-            }
-        });
-    </script>
-    <p id="notes">Notes: Model calibrated to match: delta &#126;0.98, gamma &#126;0.54, theta &#126;-391, vega &#126;5118 at SPX 6541. Fetch chain for contract selection (suggest delta 0.4-0.6). EDR 95% range (override blank for auto). Contango uses front VIX future/spot. Colors color-blind friendly. For short-term: Use DTE forecast for buy/sell timing (e.g., sell on high theta). Not financial advice.</p>
-    <div id="finra-disclosure" class="finra-disclosure">
-        <h3>Full FINRA Options Disclosure</h3>
-        <p>Options involve risks and are not suitable for all investors. Prior to buying or selling an option, a person must receive a copy of <em>Characteristics and Risks of Standardized Options</em>. Copies of this document may be obtained from your broker, from any exchange on which options are traded or by contacting The Options Clearing Corporation at 125 S. Franklin Street, Suite 1200, Chicago, IL 60606 (1-888-678-4667). The document is also available at <a href="https://www.theocc.com/Company-Information/Documents-and-Archives/Options-Disclosure-Document" target="_blank">www.theocc.com</a>.</p>
-        <p>Key risks include, but are not limited to:</p>
-        <ul>
-            <li><strong>Risk of Loss:</strong> You may lose your entire investment or more, particularly with uncovered options strategies.</li>
-            <li><strong>Complexity:</strong> Options are complex financial instruments. Understanding their pricing, strategies, and risks requires significant knowledge and experience.</li>
-            <li><strong>Leverage:</strong> Options provide significant leverage, which can amplify both gains and losses.</li>
-            <li><strong>Time Decay:</strong> The value of options may decrease rapidly as expiration approaches, even if the underlying asset's price remains unchanged.</li>
-            <li><strong>Market Risk:</strong> Options are subject to market volatility, liquidity risks, and changes in the underlying asset's price.</li>
-            <li><strong>Assignment Risk:</strong> Sellers of options may be assigned at any time before expiration, requiring delivery of the underlying asset or cash settlement.</li>
-        </ul>
-        <p>Investors should consult with a financial advisor and thoroughly understand these risks before engaging in options trading. This tool provides theoretical calculations based on the Black-Scholes model and does not guarantee actual market outcomes. Use for educational purposes only.</p>
-    </div>
-</body>
-</html>
+      }
+    }
+  }
+  return false;
+}
+// PyramidOnWinner
+void PyramidOnWinner(ulong ticket) {
+  if (!PositionSelectByTicket(ticket)) return;
+  long FCVP_parent_magic = PositionGetInteger(POSITION_MAGIC);
+  if (FCVP_parent_magic == 0) return;
+  long FCVP_type_long = PositionGetInteger(POSITION_TYPE);
+  double FCVP_sl = PositionGetDouble(POSITION_SL);
+  double FCVP_tp = PositionGetDouble(POSITION_TP);
+  double FCVP_volume = PositionGetDouble(POSITION_VOLUME);
+  double FCVP_add_lot = FCVP_volume * 0.5;
+  // Count positions with same magic
+  int FCVP_pyramid_count = 0;
+  for (int j = PositionsTotal() - 1; j >= 0; j--) {
+    ulong FCVP_pos_ticket = PositionGetTicket(j);
+    if (FCVP_pos_ticket == 0) continue;
+    if (PositionGetString(POSITION_SYMBOL) != _Symbol) continue;
+    long FCVP_pos_magic = PositionGetInteger(POSITION_MAGIC);
+    if (FCVP_pos_magic == FCVP_parent_magic) FCVP_pyramid_count++;
+  }
+  if (FCVP_pyramid_count >= 1 + FCVP_MaxPyramids) return;
+  CTrade FCVP_trade;
+  FCVP_trade.SetExpertMagicNumber(FCVP_parent_magic);
+  FCVP_trade.PositionOpen(_Symbol, (ENUM_ORDER_TYPE)FCVP_type_long, FCVP_add_lot, 0.0, FCVP_sl, FCVP_tp, "Pyramid");
+}
+// CalculateDrawdown
+double CalculateDrawdown() {
+  double FCVP_balance = AccountInfoDouble(ACCOUNT_BALANCE);
+  double FCVP_equity = AccountInfoDouble(ACCOUNT_EQUITY);
+  if (FCVP_balance == 0.0) return 0.0;
+  return (FCVP_balance - FCVP_equity) / FCVP_balance * 100.0;
+}
+// CloseAllPositions
+void CloseAllPositions() {
+  CTrade FCVP_trade;
+  for (int i = PositionsTotal() - 1; i >= 0; i--) {
+    ulong FCVP_ticket = PositionGetTicket(i);
+    if (FCVP_ticket > 0 && PositionGetString(POSITION_SYMBOL) == _Symbol) {
+      FCVP_trade.PositionClose(FCVP_ticket);
+    }
+  }
+}
+// Integrated VWAP: CreateDateTime
+datetime FCVP_VWAP_CreateDateTime(FCVP_VWAP_DATE_TYPE nReturnType=FCVP_VWAP_DATE_TYPE::FCVP_VWAP_DAILY, datetime dtDay=D'2000.01.01 00:00:00', int pHour=0, int pMinute=0, int pSecond=0) {
+  datetime dtReturnDate;
+  MqlDateTime timeStruct;
+  TimeToStruct(dtDay, timeStruct);
+  timeStruct.hour = pHour;
+  timeStruct.min = pMinute;
+  timeStruct.sec = pSecond;
+  dtReturnDate = StructToTime(timeStruct);
+  if (nReturnType == FCVP_VWAP_DATE_TYPE::FCVP_VWAP_WEEKLY) {
+    while (timeStruct.day_of_week != 0) {
+      dtReturnDate = dtReturnDate - 86400;
+      TimeToStruct(dtReturnDate, timeStruct);
+    }
+  }
+  if (nReturnType == FCVP_VWAP_DATE_TYPE::FCVP_VWAP_MONTHLY) {
+    timeStruct.day = 1;
+    dtReturnDate = StructToTime(timeStruct);
+  }
+  return dtReturnDate;
+}
+// Integrated VWAP: Compute
+void FCVP_VWAP_Compute() {
+  int rates_total = ArraySize(FCVP_rates);
+  if (rates_total <= 0) return;
+  if (FCVP_VWAP_IsFirstRun || _Period != FCVP_VWAP_LastTimePeriod) {
+    FCVP_VWAP_IsFirstRun = false;
+    FCVP_VWAP_LastTimePeriod = _Period;
+    int max_rates = 10000;
+    ArrayResize(FCVP_VWAP_PriceArr, max_rates);
+    ArrayResize(FCVP_VWAP_TotalTPV, max_rates);
+    ArrayResize(FCVP_VWAP_TotalVol, max_rates);
+    ArrayResize(FCVP_VWAP_Buffer_Daily, max_rates);
+    ArrayResize(FCVP_VWAP_Buffer_Weekly, max_rates);
+    ArrayResize(FCVP_VWAP_Buffer_Monthly, max_rates);
+    FCVP_VWAP_SumDailyTPV = 0;
+    FCVP_VWAP_SumDailyVol = 0;
+    FCVP_VWAP_SumWeeklyTPV = 0;
+    FCVP_VWAP_SumWeeklyVol = 0;
+    FCVP_VWAP_SumMonthlyTPV = 0;
+    FCVP_VWAP_SumMonthlyVol = 0;
+  }
+  if (ArraySize(FCVP_VWAP_PriceArr) < rates_total) {
+    ArrayResize(FCVP_VWAP_PriceArr, rates_total);
+    ArrayResize(FCVP_VWAP_TotalTPV, rates_total);
+    ArrayResize(FCVP_VWAP_TotalVol, rates_total);
+    ArrayResize(FCVP_VWAP_Buffer_Daily, rates_total);
+    ArrayResize(FCVP_VWAP_Buffer_Weekly, rates_total);
+    ArrayResize(FCVP_VWAP_Buffer_Monthly, rates_total);
+  }
+  for (int i = 0; i < rates_total; i++) {
+    switch (FCVP_VWAP_Price_Type) {
+      case FCVP_OPEN:
+        FCVP_VWAP_PriceArr[i] = FCVP_rates[i].open;
+        break;
+      case FCVP_CLOSE:
+        FCVP_VWAP_PriceArr[i] = FCVP_rates[i].close;
+        break;
+      case FCVP_HIGH:
+        FCVP_VWAP_PriceArr[i] = FCVP_rates[i].high;
+        break;
+      case FCVP_LOW:
+        FCVP_VWAP_PriceArr[i] = FCVP_rates[i].low;
+        break;
+      case FCVP_OPEN_CLOSE:
+        FCVP_VWAP_PriceArr[i] = (FCVP_rates[i].open + FCVP_rates[i].close) / 2;
+        break;
+      case FCVP_HIGH_LOW:
+        FCVP_VWAP_PriceArr[i] = (FCVP_rates[i].high + FCVP_rates[i].low) / 2;
+        break;
+      case FCVP_CLOSE_HIGH_LOW:
+        FCVP_VWAP_PriceArr[i] = (FCVP_rates[i].close + FCVP_rates[i].high + FCVP_rates[i].low) / 3;
+        break;
+      case FCVP_OPEN_CLOSE_HIGH_LOW:
+        FCVP_VWAP_PriceArr[i] = (FCVP_rates[i].open + FCVP_rates[i].close + FCVP_rates[i].high + FCVP_rates[i].low) / 4;
+        break;
+    }
+    FCVP_VWAP_TotalTPV[i] = FCVP_VWAP_PriceArr[i] * (double)FCVP_rates[i].tick_volume;
+    FCVP_VWAP_TotalVol[i] = (double)FCVP_rates[i].tick_volume;
+    if (FCVP_VWAP_Enable_Daily) {
+      if (FCVP_VWAP_CreateDateTime(FCVP_VWAP_DATE_TYPE::FCVP_VWAP_DAILY, FCVP_rates[i].time) != FCVP_VWAP_LastDay) {
+        FCVP_VWAP_IdxDaily = i;
+        FCVP_VWAP_SumDailyTPV = 0;
+        FCVP_VWAP_SumDailyVol = 0;
+      }
+      FCVP_VWAP_SumDailyTPV += FCVP_VWAP_TotalTPV[i];
+      FCVP_VWAP_SumDailyVol += FCVP_VWAP_TotalVol[i];
+      FCVP_VWAP_Buffer_Daily[i] = (FCVP_VWAP_SumDailyVol > 0) ? FCVP_VWAP_SumDailyTPV / FCVP_VWAP_SumDailyVol : 0.0;
+      FCVP_VWAP_Current = FCVP_VWAP_Buffer_Daily[i]; // Use daily for bias
+      FCVP_VWAP_LastDay = FCVP_VWAP_CreateDateTime(FCVP_VWAP_DATE_TYPE::FCVP_VWAP_DAILY, FCVP_rates[i].time);
+    }
+    // Similar for weekly and monthly if enabled
+    if (FCVP_VWAP_Enable_Weekly) {
+      if (FCVP_VWAP_CreateDateTime(FCVP_VWAP_DATE_TYPE::FCVP_VWAP_WEEKLY, FCVP_rates[i].time) != FCVP_VWAP_LastWeek) {
+        FCVP_VWAP_IdxWeekly = i;
+        FCVP_VWAP_SumWeeklyTPV = 0;
+        FCVP_VWAP_SumWeeklyVol = 0;
+      }
+      FCVP_VWAP_SumWeeklyTPV += FCVP_VWAP_TotalTPV[i];
+      FCVP_VWAP_SumWeeklyVol += FCVP_VWAP_TotalVol[i];
+      FCVP_VWAP_Buffer_Weekly[i] = (FCVP_VWAP_SumWeeklyVol > 0) ? FCVP_VWAP_SumWeeklyTPV / FCVP_VWAP_SumWeeklyVol : 0.0;
+      FCVP_VWAP_LastWeek = FCVP_VWAP_CreateDateTime(FCVP_VWAP_DATE_TYPE::FCVP_VWAP_WEEKLY, FCVP_rates[i].time);
+    }
+    if (FCVP_VWAP_Enable_Monthly) {
+      if (FCVP_VWAP_CreateDateTime(FCVP_VWAP_DATE_TYPE::FCVP_VWAP_MONTHLY, FCVP_rates[i].time) != FCVP_VWAP_LastMonth) {
+        FCVP_VWAP_IdxMonthly = i;
+        FCVP_VWAP_SumMonthlyTPV = 0;
+        FCVP_VWAP_SumMonthlyVol = 0;
+      }
+      FCVP_VWAP_SumMonthlyTPV += FCVP_VWAP_TotalTPV[i];
+      FCVP_VWAP_SumMonthlyVol += FCVP_VWAP_TotalVol[i];
+      FCVP_VWAP_Buffer_Monthly[i] = (FCVP_VWAP_SumMonthlyVol > 0) ? FCVP_VWAP_SumMonthlyTPV / FCVP_VWAP_SumMonthlyVol : 0.0;
+      FCVP_VWAP_LastMonth = FCVP_VWAP_CreateDateTime(FCVP_VWAP_DATE_TYPE::FCVP_VWAP_MONTHLY, FCVP_rates[i].time);
+    }
+  }
+}
