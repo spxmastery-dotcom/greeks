@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SPX Mastery Long-Term Options Analyzer (Build 1, Version 30)</title>
+    <title>SPX Mastery Long-Term Options Analyzer (Build 1, Version 31)</title>
     <link rel="icon" href="https://storage.googleapis.com/msgsndr/DbcHU95N4uVVUJoOWctG/media/68c18e9983b98269408909db.png">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js" onload="console.log('CDN_SUCCESS_1: jsDelivr loaded')" onerror="console.log('CDN_ERROR_1: jsDelivr failed'); loadFallbackCDN(1)"></script>
     <script>
@@ -74,7 +74,7 @@
     <div class="disclaimer">
         <strong>Disclaimer:</strong> This tool is for educational purposes only and is not financial advice. Options trading involves significant risks, including the potential loss of your entire investment or more. Calculations are theoretical (Black-Scholes model) and may not reflect actual market conditions. The creator (spxmastery) is not liable for any financial losses or damages resulting from use of this tool. Consult a qualified financial advisor before trading options.
     </div>
-    <h1>SPX Mastery Long-Term Options Analyzer (Build 1, Version 30)</h1>
+    <h1>SPX Mastery Long-Term Options Analyzer (Build 1, Version 31)</h1>
     <div class="input-section">
         <h2>Input Parameters (Click Update to Recalculate)</h2>
         <div class="tooltip">
@@ -360,7 +360,7 @@
                 const isHoliday = holidays.includes(todayStr);
                 const isAfterHours = isHoliday || etHour < 9 || (etHour === 9 && etMin < 30) || etHour >= 16;
                 document.getElementById('afterHoursNote').style.display = isAfterHours ? 'block' : 'none';
-                document.getElementById('afterHoursNote').innerText = isAfterHours ? (isHoliday ? 'Market Closed (Holiday): Prev Close [ET Time: ' + etHour + ':' + etMin + ']' : 'After-Hours: Prev Close [ET Time: ' + etHour + ':' + etMin + ']') : 'Market Open [ET Time: ' + etHour + ':' + etMin + ']';
+                document.getElementById('afterHoursNote').innerText = isAfterHours ? (isHoliday ? 'Market Closed (Holiday): Data is last close [ET Time: ' + etHour + ':' + etMin + ']' : 'After-Hours: Data is last close (4:00 PM EDT) [ET Time: ' + etHour + ':' + etMin + ']') : 'Market Open [ET Time: ' + etHour + ':' + etMin + ']';
                 let spxPrice, vixSpot, atmIV;
                 if (provider === 'polygon') {
                     const spxPromise = timeoutPromise(fetch(`https://api.polygon.io/v2/aggs/ticker/I:SPX/prev?apiKey=${apiKey}`), 10000);
@@ -515,7 +515,7 @@
                     showError('CHAIN_EMPTY: No options data - refine expiration or symbol filters [Response: ' + JSON.stringify(data) + '] [Timestamp: ' + new Date().toISOString() + ']');
                     return;
                 }
-                console.log('Chain Data: ' + JSON.stringify(data));
+                console.log('Chain JSON: ' + JSON.stringify(data.results));
                 const tbody = document.getElementById('chainTable').getElementsByTagName('tbody')[0];
                 tbody.innerHTML = '';
                 let atmIV = 0;
@@ -534,19 +534,19 @@
                 filteredResults.forEach(opt => {
                     const contract = opt.details || opt;
                     const day = opt.day || {};
-                    const bid = day.bid_price || 'N/A';
-                    const ask = day.ask_price || 'N/A';
-                    const mid = (bid !== 'N/A' && ask !== 'N/A') ? ((bid + ask) / 2).toFixed(2) : 'N/A';
-                    const iv = (opt.implied_volatility * 100)?.toFixed(2) || 'N/A';
-                    const delta = opt.greeks?.delta?.toFixed(2) || 'N/A';
-                    const gamma = opt.greeks?.gamma?.toFixed(4) || 'N/A';
-                    const theta = opt.greeks?.theta?.toFixed(2) || 'N/A';
-                    const vega = opt.greeks?.vega?.toFixed(2) || 'N/A';
-                    if (isNaN(parseFloat(delta)) || bid === 'N/A') {
+                    const bid = day.bid_price || 'N/A (After-Hours)';
+                    const ask = day.ask_price || 'N/A (After-Hours)';
+                    const mid = (bid !== 'N/A (After-Hours)' && ask !== 'N/A (After-Hours)') ? ((bid + ask) / 2).toFixed(2) : 'N/A (After-Hours)';
+                    const iv = (opt.implied_volatility * 100)?.toFixed(2) || 'N/A (After-Hours)';
+                    const delta = opt.greeks?.delta?.toFixed(2) || 'N/A (After-Hours)';
+                    const gamma = opt.greeks?.gamma?.toFixed(4) || 'N/A (After-Hours)';
+                    const theta = opt.greeks?.theta?.toFixed(2) || 'N/A (After-Hours)';
+                    const vega = opt.greeks?.vega?.toFixed(2) || 'N/A (After-Hours)';
+                    if (isNaN(parseFloat(delta)) || bid === 'N/A (After-Hours)') {
                         showError('PARSE_NA: Off-hours data—retry live [Timestamp: ' + new Date().toISOString() + ']');
                     }
-                    const skew = iv !== 'N/A' ? (parseFloat(iv) - atmIV).toFixed(2) : 'N/A';
-                    if (skew !== 'N/A' && parseFloat(skew) > 15) {
+                    const skew = iv !== 'N/A (After-Hours)' ? (parseFloat(iv) - atmIV).toFixed(2) : 'N/A (After-Hours)';
+                    if (skew !== 'N/A (After-Hours)' && parseFloat(skew) > 15) {
                         showError('SKEW_WARNING: High skew (>15) - Buy OTM before crush [Timestamp: ' + new Date().toISOString() + ']');
                     }
                     const row = document.createElement('tr');
@@ -561,6 +561,9 @@
                     };
                     tbody.appendChild(row);
                 });
+                if (filteredResults.length < 5) {
+                    showError('CHAIN_EMPTY: Sparse Data: Outage/After-Hours—Retry Live [Timestamp: ' + new Date().toISOString() + ']');
+                }
                 document.getElementById('chainContainer').style.display = 'block';
                 document.getElementById('currentGreeks').innerHTML = `<span class="fetch-success">FETCH_CHAIN_SUCCESS: Options chain updated <strong>[Data: Live]</strong> [Timestamp: ${new Date().toISOString()}]</span>`;
             } catch (e) {
