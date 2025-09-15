@@ -8,21 +8,16 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js" onload="console.log('CDN_SUCCESS_1: jsDelivr loaded')" onerror="console.log('CDN_ERROR_1: jsDelivr failed'); loadFallbackCDN(1)"></script>
   <script>
     function loadFallbackCDN(attempt) {
-      console.log(`LOADING_FALLBACK_CDN: Attempt ${attempt} [Timestamp: ${new Date().toISOString()}]`);
-      const s = document.createElement('script');
-      s.src = attempt === 1 ? 'https://cdnjs.cloudflare.com/ajax/libs/chart.js/4.4.4/chart.min.js'
-                            : 'https://unpkg.com/chart.js@4.4.4/dist/chart.min.js';
-      s.onload = () => console.log(`CDN_SUCCESS_${attempt+1}: Fallback loaded [${new Date().toISOString()}]`);
-      s.onerror = () => {
-        console.log(`CDN_ERROR_${attempt+1}: Fallback failed [${new Date().toISOString()}]`);
-        if (attempt === 1) loadFallbackCDN(2);
-        else {
-          console.log('CDN_ERROR_ALL: All Chart.js CDNs failed');
-          const el = document.getElementById('chartError');
-          el.style.display = 'block';
-          el.innerText = 'CDN_ERROR_ALL: All Chart.js CDNs failed. Disable ad blockers or try incognito.';
-        }
-      };
+      console.log(`LOADING_FALLBACK_CDN: Attempt ${attempt} [${new Date().toISOString()}]`);
+      const s=document.createElement('script');
+      s.src = attempt===1 ? 'https://cdnjs.cloudflare.com/ajax/libs/chart.js/4.4.4/chart.min.js'
+                          : 'https://unpkg.com/chart.js@4.4.4/dist/chart.min.js';
+      s.onload=()=>console.log(`CDN_SUCCESS_${attempt+1}: Fallback loaded`);
+      s.onerror=()=>{ if(attempt===1) loadFallbackCDN(2); else {
+        const el=document.getElementById('chartError');
+        el.style.display='block';
+        el.innerText='CDN_ERROR_ALL: All Chart.js CDNs failed. Disable ad blockers or try incognito.';
+      }};
       document.head.appendChild(s);
     }
   </script>
@@ -72,7 +67,7 @@
   <a href="#finra-disclosure" style="text-align:center;display:block;font-size:12px;">View Full FINRA Options Disclosure</a>
 
   <div class="disclaimer">
-    <strong>Disclaimer:</strong> This tool is for educational purposes only and is not financial advice...
+    <strong>Disclaimer:</strong> This tool is for educational purposes only and is not financial advice. Options trading involves significant risks, including the potential loss of your entire investment or more. Calculations are theoretical (Black-Scholes model) and may not reflect actual market conditions. The creator (spxmastery) is not liable for any financial losses or damages resulting from use of this tool. Consult a qualified financial advisor before trading options.
   </div>
 
   <h1>SPX Mastery Long-Term Options Analyzer (Build 1, Version 28)</h1>
@@ -112,7 +107,7 @@
     </div>
 
     <div class="input-group">
-      <label>EDR Days: <input id="edrDays" type="number" value="30" step="1" title="Expected 95% move: IV*sqrt(days/365)*1.96"></label>
+      <label>EDR Days: <input id="edrDays" type="number" value="30" step="1" title="Expected 95% Move over X days (from IV*sqrt(days/365)*1.96)"></label>
       <button id="edr30Btn" onclick="setEdrDays(30)">30 Days</button>
       <button id="edr60Btn" onclick="setEdrDays(60)">60 Days</button>
       <button id="edr90Btn" onclick="setEdrDays(90)">90 Days</button>
@@ -202,42 +197,32 @@
 
   <script>
     console.log('SCRIPT_PARSED: Ready ['+new Date().toISOString()+']');
-    let dataSource = 'live';
-    let charts = {};
-    const holidays = ['2025-09-01','2025-11-27','2025-12-25'];
+    let dataSource='live';
+    let charts={};
+    const holidays=['2025-09-01','2025-11-27','2025-12-25'];
 
-    // ---------- helpers (NEW in V28) ----------
-    const toNum = (v) => {
-      const n = Number(v);
-      return Number.isFinite(n) ? n : null;
+    // helpers
+    const toNum = v => { const n=Number(v); return Number.isFinite(n)? n : null; };
+    const extractQuote = row => {
+      const lq=row.last_quote||{}; const day=row.day||{};
+      const bid=toNum(lq.bid ?? day.bid_price);
+      const ask=toNum(lq.ask ?? day.ask_price);
+      return {bid,ask};
     };
-
-    // prefer last_quote.* over day.*; return numbers or null
-    const extractQuote = (row) => {
-      const lq = row.last_quote || {};
-      const day = row.day || {};
-      const bid = toNum(lq.bid ?? day.bid_price);
-      const ask = toNum(lq.ask ?? day.ask_price);
-      return { bid, ask };
-    };
-
-    // IV can appear in several places; return number in % or null
-    const extractIVpct = (row) => {
+    const extractIVpct = row => {
       const ivRaw = row.iv ?? row.implied_volatility ?? row.greeks?.iv;
       const iv = toNum(ivRaw);
-      return iv != null ? (iv * 100) : null;
+      return iv!=null ? (iv*100) : null;
     };
 
-    // -------------- math --------------
-    function normCDF(x){
-      try{
-        if(typeof x!=='number'||isNaN(x)) throw new Error('Invalid x');
-        const t=1/(1+0.2316419*Math.abs(x));
-        const d=0.3989423*Math.exp(-(x**2)/2);
-        let p=d*t*(0.3193815+t*(-0.3565638+t*(1.781478+t*(-1.821256+t*1.330274))));
-        return x>0? 1-p : p;
-      }catch(e){ console.error('NORM_CDF_ERROR:', e); return 0; }
-    }
+    // math (unchanged)
+    function normCDF(x){ try{
+      if(typeof x!=='number'||isNaN(x)) throw new Error('Invalid x');
+      const t=1/(1+0.2316419*Math.abs(x));
+      const d=0.3989423*Math.exp(-(x**2)/2);
+      let p=d*t*(0.3193815+t*(-0.3565638+t*(1.781478+t*(-1.821256+t*1.330274))));
+      return x>0?1-p:p;
+    }catch(e){ console.error(e); return 0; } }
 
     function blackScholesGreeks(S,K,T,r,sigma,q=0,type='call'){
       try{
@@ -250,10 +235,8 @@
         else{ price=K*Math.exp(-r*T)*nnd2 - S*Math.exp(-q*T)*nnd1; delta=-Math.exp(-q*T)*nnd1; }
         const pdf=Math.exp(-(d1**2)/2)/Math.sqrt(2*Math.PI);
         const gamma=(Math.exp(-q*T)*pdf)/(S*sigma*Math.sqrt(T));
-        let theta = -(S*Math.exp(-q*T)*pdf*sigma)/(2*Math.sqrt(T))
-                    - r*K*Math.exp(-r*T)*(type==='call'? nd2 : -nnd2)
-                    + q*S*Math.exp(-q*T)*(type==='call'? nd1 : -nnd1);
-        theta/=252; // daily
+        let theta=-(S*Math.exp(-q*T)*pdf*sigma)/(2*Math.sqrt(T)) - r*K*Math.exp(-r*T)*(type==='call'? nd2 : -nnd2) + q*S*Math.exp(-q*T)*(type==='call'? nd1 : -nnd1);
+        theta/=252;
         const vega=(S*Math.exp(-q*T)*Math.sqrt(T)*pdf)/100;
         if([price,delta,gamma,theta,vega].some(x=>!Number.isFinite(x))) throw new Error('NaN greeks');
         return {price,delta,gamma,theta,vega};
@@ -276,9 +259,7 @@
 
     function calculateDTE(expDate){
       try{
-        const today=new Date();
-        const exp=new Date(expDate);
-        if(isNaN(exp.getTime())) throw new Error('Bad expiration');
+        const today=new Date(), exp=new Date(expDate);
         const T=(exp-today)/(1000*60*60*24)/365;
         return Math.max(T,0.0001);
       }catch(e){ showError('CALCULATE_DTE_ERROR: '+e.message); return 0.0001; }
@@ -289,18 +270,18 @@
         const ids=['spx','strike','iv','premium','contracts','r','q','edrDays'];
         for(const id of ids){
           const v=parseFloat(document.getElementById(id).value);
-          if(isNaN(v) || v<=0){ showError(`INPUT_ERROR: ${id.toUpperCase()} must be positive number`); return false; }
+          if(isNaN(v)||v<=0){ showError(`INPUT_ERROR: ${id.toUpperCase()} must be positive`); return false; }
         }
         const exp=document.getElementById('expiration').value;
-        if(!exp || isNaN(new Date(exp).getTime())){ showError('INPUT_ERROR: Invalid expiration date'); return false; }
+        if(!exp||isNaN(new Date(exp).getTime())){ showError('INPUT_ERROR: Invalid expiration date'); return false; }
         return true;
       }catch(e){ showError('VALIDATE_INPUTS_ERROR: '+e.message); return false; }
     }
 
-    function showError(message){
+    function showError(msg){
       const el=document.getElementById('currentGreeks');
-      el.innerHTML += `<br><span class="error">${message}</span>`;
-      console.error(message);
+      el.innerHTML += `<br><span class="error">${msg}</span>`;
+      console.error(msg);
     }
 
     async function timeoutPromise(p,ms){
@@ -312,56 +293,55 @@
 
     async function fetchLiveData(attempt=1,maxAttempts=3){
       const btn=document.getElementById('fetchLiveBtn');
-      let isAfterHours=false; // moved out so catch can see it
+      let isAfterHours=false;
       try{
         btn.disabled=true; btn.innerText='Fetching...';
         if(!validateInputs()) throw new Error('VALIDATION_FAILED');
         const provider=document.getElementById('apiProvider').value;
         const apiKey=document.getElementById('apiKey').value;
         if(!apiKey) throw new Error('API_KEY_MISSING');
-        localStorage.setItem('apiKey',apiKey);
-        localStorage.setItem('apiProvider',provider);
 
         const fmt=new Intl.DateTimeFormat('en-US',{hour:'numeric',minute:'numeric',timeZone:'America/New_York',hour12:false});
         const parts=fmt.formatToParts(new Date());
         const etHour=parseInt(parts.find(p=>p.type==='hour').value);
         const etMin=parseInt(parts.find(p=>p.type==='minute').value);
         const todayStr=new Date().toISOString().split('T')[0];
-        const isHoliday=holidays.includes(todayStr);
-        isAfterHours = isHoliday || etHour<9 || (etHour===9 && etMin<30) || etHour>=16;
-        const ahEl=document.getElementById('afterHoursNote');
-        ahEl.style.display = isAfterHours ? 'block':'none';
-        ahEl.innerText = isAfterHours
-            ? (isHoliday? `Market Closed (Holiday). ET ${etHour}:${etMin}` : `After-Hours: Last close. ET ${etHour}:${etMin}`)
-            : `Market Open. ET ${etHour}:${etMin}`;
+        const isHoliday=['2025-09-01','2025-11-27','2025-12-25'].includes(todayStr);
+        isAfterHours = isHoliday || etHour<9 || (etHour===9&&etMin<30) || etHour>=16;
+        const ah=document.getElementById('afterHoursNote');
+        ah.style.display=isAfterHours?'block':'none';
+        ah.innerText = isAfterHours
+          ? (isHoliday? `Market Closed (Holiday). ET ${etHour}:${etMin}` : `After-Hours: Last close. ET ${etHour}:${etMin}`)
+          : `Market Open. ET ${etHour}:${etMin}`;
 
         let spxPrice, vixSpot, atmIV;
+
         if(provider==='polygon'){
+          // SPX & VIX snapshots (unchanged)
           const spxResp=await timeoutPromise(fetch(`https://api.polygon.io/v3/snapshot/indices?ticker=I:SPX&apiKey=${apiKey}`),10000);
           if(!spxResp.ok) throw new Error('SPX_HTTP_'+spxResp.status);
           const spxData=await spxResp.json();
-          if(!spxData.results?.[0]) throw new Error('NO_SPX_RESULTS');
-          spxPrice = toNum(spxData.results[0].value ?? spxData.results[0].prev_close);
+          spxPrice = toNum(spxData.results?.[0]?.value ?? spxData.results?.[0]?.prev_close);
 
           const vixResp=await timeoutPromise(fetch(`https://api.polygon.io/v3/snapshot/indices?ticker=I:VIX&apiKey=${apiKey}`),10000);
           if(!vixResp.ok) throw new Error('VIX_HTTP_'+vixResp.status);
           const vixData=await vixResp.json();
           vixSpot = toNum(vixData.results?.[0]?.value ?? vixData.results?.[0]?.prev_close);
 
-          // quick ATM IV attempt from chain (optional)
+          // ATM IV probe — FIXED to I:SPX
           const exp=document.getElementById('expiration').value;
           const type=document.getElementById('optionType').value.toLowerCase();
-          const chainUrl=`https://api.polygon.io/v3/snapshot/options/SPX?expiration_date=${exp}&contract_type=${type}&limit=200&strike_price_gte=${spxPrice-500}&strike_price_lte=${spxPrice+500}&apiKey=${apiKey}`;
-          const chainResp = await timeoutPromise(fetch(chainUrl),10000);
+          const chainUrl=`https://api.polygon.io/v3/snapshot/options/I:SPX?expiration_date=${exp}&contract_type=${type}&limit=200&strike_price_gte=${spxPrice-500}&strike_price_lte=${spxPrice+500}&apiKey=${apiKey}`;
+          const chainResp=await timeoutPromise(fetch(chainUrl),10000);
           if(chainResp.ok){
-            const chainData = await chainResp.json();
+            const chainData=await chainResp.json();
             if(chainData.results?.length){
-              const atm = chainData.results.reduce((p,c)=>{
-                const pdiff=Math.abs((p.details?.strike_price ?? p.strike_price) - spxPrice);
-                const cdiff=Math.abs((c.details?.strike_price ?? c.strike_price) - spxPrice);
-                return cdiff < pdiff ? c : p;
+              const atm=chainData.results.reduce((p,c)=>{
+                const ps=Math.abs((p.details?.strike_price ?? p.strike) - spxPrice);
+                const cs=Math.abs((c.details?.strike_price ?? c.strike) - spxPrice);
+                return cs<ps? c:p;
               });
-              atmIV = extractIVpct(atm); // may be null
+              atmIV = extractIVpct(atm);
             }
           }
         }else if(provider==='alpha'){
@@ -371,7 +351,7 @@
           const v=await timeoutPromise(fetch(`https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=^VIX&apikey=${apiKey}`),10000);
           if(!v.ok) throw new Error('ALPHA_VIX_'+v.status);
           const jv=await v.json(); vixSpot=toNum(jv['Global Quote']?.['05. price']);
-          atmIV=vixSpot; // fallback heuristic
+          atmIV=vixSpot;
         }else{
           const s=await timeoutPromise(fetch(`https://finnhub.io/api/v1/quote?symbol=^GSPC&token=${apiKey}`),10000);
           if(!s.ok) throw new Error('FINNHUB_SPX_'+s.status);
@@ -382,13 +362,12 @@
           atmIV=vixSpot;
         }
 
-        if(!Number.isFinite(spxPrice) || spxPrice<=0) throw new Error('BAD_SPX_PRICE');
-        document.getElementById('spx').value = spxPrice.toFixed(2);
+        if(!Number.isFinite(spxPrice)||spxPrice<=0) throw new Error('BAD_SPX_PRICE');
+        document.getElementById('spx').value=spxPrice.toFixed(2);
 
         if(document.getElementById('ivSource').value==='live'){
-          if(Number.isFinite(atmIV) && atmIV>0) {
-            document.getElementById('iv').value = atmIV.toFixed(2);
-          } else if(Number.isFinite(vixSpot) && vixSpot>0) {
+          if(Number.isFinite(atmIV) && atmIV>0) document.getElementById('iv').value=atmIV.toFixed(2);
+          else if(Number.isFinite(vixSpot) && vixSpot>0){
             const T=calculateDTE(document.getElementById('expiration').value);
             const calibrated=(vixSpot/100)*Math.sqrt(30/(T*365));
             document.getElementById('iv').value=(calibrated*100).toFixed(2);
@@ -396,23 +375,14 @@
         }
 
         dataSource='live';
-
-        // contango snippet unchanged (omitted here for brevity)
-        // ... keep your existing contango code block as-is ...
-
         document.getElementById('currentGreeks').innerHTML =
-          `<span class="fetch-success">FETCH_SUCCESS: SPX/VIX Updated from ${provider.toUpperCase()} <strong>[Data: ${isAfterHours?'Last Close':'Live'}]</strong> [${new Date().toISOString()}]</span>`;
+          `<span class="fetch-success">FETCH_SUCCESS: SPX/VIX Updated <strong>[Data: ${isAfterHours?'Last Close':'Live'}]</strong> [${new Date().toISOString()}]</span>`;
         updateAll();
       }catch(e){
-        showError('FETCH_LIVE_ERROR: '+e.message+` [Attempt ${attempt}/${maxAttempts}]`);
+        showError('FETCH_LIVE_ERROR: '+e.message);
         if(attempt<maxAttempts) setTimeout(()=>fetchLiveData(attempt+1),2000);
-        else{
-          showError('FETCH_LIVE_FAILED_ALL: Using ETF proxy if after-hours.');
-          if(isAfterHours) applyEtfProxy();
-        }
-      }finally{
-        btn.disabled=false; btn.innerText='Fetch Live Data';
-      }
+        else if(isAfterHours) applyEtfProxy();
+      }finally{ btn.disabled=false; btn.innerText='Fetch Live Data'; }
     }
 
     async function testApi(){
@@ -427,7 +397,7 @@
       }catch(e){ showError('TEST_API_ERROR: '+e.message); }
     }
 
-    // ---------- FIXED: robust chain population ----------
+    // FIXED: chain uses I:SPX (index options)
     async function fetchOptionsChain(){
       try{
         const apiKey=document.getElementById('apiKey').value;
@@ -436,110 +406,90 @@
         const spxPrice=toNum(document.getElementById('spx').value);
         if(!apiKey || !exp || !Number.isFinite(spxPrice)) throw new Error('Missing key/expiration/SPX');
 
-        const url=`https://api.polygon.io/v3/snapshot/options/SPX?expiration_date=${exp}&contract_type=${type}&order=asc&limit=1000&sort=strike_price&apiKey=${apiKey}`;
+        const url=`https://api.polygon.io/v3/snapshot/options/I:SPX?expiration_date=${exp}&contract_type=${type}&order=asc&limit=1000&sort=strike_price&apiKey=${apiKey}`;
         const resp=await timeoutPromise(fetch(url),15000);
-        if(!resp.ok) throw new Error('CHAIN_HTTP_'+resp.status);
+        if(!resp.ok){
+          if(resp.status===400){
+            showError('FETCH_CHAIN_ERROR: CHAIN_HTTP_400 — For index options use I:SPX and ensure your plan includes Index Options.');
+          }
+          throw new Error('CHAIN_HTTP_'+resp.status);
+        }
         const data=await resp.json();
 
         let results = Array.isArray(data.results) ? data.results.slice() : [];
-        if(!results.length){ showError('CHAIN_EMPTY: No options returned (try market hours or different expiration).'); return; }
+        if(!results.length){ showError('CHAIN_EMPTY: No options returned (try market hours, different expiration, or entitlement check).'); return; }
 
-        // Normalize strike, quotes, iv & greeks
         results = results.map(r=>{
-          const strike = toNum(r.details?.strike_price ?? r.strike_price);
-          const {bid,ask} = extractQuote(r);
-          const ivPct = extractIVpct(r); // may be null
-          const greeks = r.greeks || {};
-          const delta = toNum(greeks.delta);
-          const gamma = toNum(greeks.gamma);
-          const theta = toNum(greeks.theta);
-          const vega  = toNum(greeks.vega);
-          return { raw:r, strike, bid, ask, ivPct, delta, gamma, theta, vega };
-        }).filter(x=>Number.isFinite(x.strike));
+          const strike=toNum(r.details?.strike_price ?? r.strike_price);
+          const {bid,ask}=extractQuote(r);
+          const ivPct=extractIVpct(r);
+          const g=r.greeks||{};
+          return { raw:r, strike, bid, ask, ivPct,
+            delta:toNum(g.delta), gamma:toNum(g.gamma), theta:toNum(g.theta), vega:toNum(g.vega)
+          };
+        }).filter(x=>Number.isFinite(x.strike))
+          .sort((a,b)=>a.strike-b.strike);
 
-        // pick ATM for baseline IV if needed
         const atm = results.reduce((p,c)=>{
-          const pdiff=Math.abs(p.strike - spxPrice);
-          const cdiff=Math.abs(c.strike - spxPrice);
-          return cdiff<pdiff? c: p;
+          const pd=Math.abs(p.strike - spxPrice), cd=Math.abs(c.strike - spxPrice);
+          return cd<pd? c:p;
         }, results[0]);
-
         const atmIV = Number.isFinite(atm?.ivPct) ? atm.ivPct : null;
 
-        // Filter OTM window like before
         const filtered = results.filter(opt=>{
           if(type==='call') return opt.strike >= spxPrice-50 && opt.strike <= spxPrice+1000;
           else              return opt.strike <= spxPrice+50 && opt.strike >= spxPrice-1000;
-        }).sort((a,b)=>a.strike-b.strike).slice(0,500);
+        }).slice(0,500);
 
         const tbody=document.getElementById('chainTable').querySelector('tbody');
         tbody.innerHTML='';
-
-        let firstNumericMidSet = false;
+        let firstNumericMidSet=false;
 
         for(const opt of filtered){
-          const bid = Number.isFinite(opt.bid) ? opt.bid : null;
-          const ask = Number.isFinite(opt.ask) ? opt.ask : null;
-          const mid = (bid!=null && ask!=null) ? ( (bid+ask)/2 ) : null;
-
-          const ivUse = Number.isFinite(opt.ivPct) ? opt.ivPct
-                       : (atmIV!=null ? atmIV : null);
-
-          // Skew vs ATM
+          const mid = (opt.bid!=null && opt.ask!=null) ? (opt.bid+opt.ask)/2 : null;
+          const ivUse = Number.isFinite(opt.ivPct) ? opt.ivPct : (atmIV!=null ? atmIV : null);
           const skew = (ivUse!=null && atmIV!=null) ? (ivUse - atmIV) : null;
 
           const tr=document.createElement('tr');
-          const cells=[
-            opt.strike?.toFixed(2),
-            (bid!=null? bid.toFixed(2) : 'N/A (AH)'),
-            (ask!=null? ask.toFixed(2) : 'N/A (AH)'),
-            (mid!=null? mid.toFixed(2) : 'N/A'),
-            (ivUse!=null? ivUse.toFixed(2) : 'N/A'),
-            (Number.isFinite(opt.delta)? opt.delta.toFixed(2) : 'N/A'),
-            (Number.isFinite(opt.gamma)? opt.gamma.toFixed(4) : 'N/A'),
-            (Number.isFinite(opt.theta)? opt.theta.toFixed(2) : 'N/A'),
-            (Number.isFinite(opt.vega)?  opt.vega.toFixed(2)  : 'N/A'),
-            (skew!=null? skew.toFixed(2) : 'N/A')
-          ];
-          tr.innerHTML = `<td>${cells[0]}</td><td>${cells[1]}</td><td>${cells[2]}</td><td>${cells[3]}</td><td>${cells[4]}</td><td>${cells[5]}</td><td>${cells[6]}</td><td>${cells[7]}</td><td>${cells[8]}</td><td>${cells[9]}</td>`;
+          tr.innerHTML = `
+            <td>${opt.strike.toFixed(2)}</td>
+            <td>${opt.bid!=null? opt.bid.toFixed(2) : 'N/A (AH)'}</td>
+            <td>${opt.ask!=null? opt.ask.toFixed(2) : 'N/A (AH)'}</td>
+            <td>${mid!=null? mid.toFixed(2) : 'N/A'}</td>
+            <td>${ivUse!=null? ivUse.toFixed(2) : 'N/A'}</td>
+            <td>${Number.isFinite(opt.delta)? opt.delta.toFixed(2) : 'N/A'}</td>
+            <td>${Number.isFinite(opt.gamma)? opt.gamma.toFixed(4) : 'N/A'}</td>
+            <td>${Number.isFinite(opt.theta)? opt.theta.toFixed(2) : 'N/A'}</td>
+            <td>${Number.isFinite(opt.vega) ? opt.vega.toFixed(2)  : 'N/A'}</td>
+            <td>${skew!=null? skew.toFixed(2) : 'N/A'}</td>`;
 
-          // highlight 0.4–0.6 delta
-          const d = toNum(opt.delta);
+          const d=toNum(opt.delta);
           if(d!=null && d>=0.4 && d<=0.6) tr.className='suggested-row';
 
-          // first numeric mid -> auto-fill premium once
           if(!firstNumericMidSet && mid!=null){
-            document.getElementById('premium').value = mid.toFixed(2);
-            firstNumericMidSet = true;
+            document.getElementById('premium').value=mid.toFixed(2);
+            firstNumericMidSet=true;
           }
 
-          // Row click → populate inputs
-          tr.onclick = ()=>{
-            document.getElementById('strike').value = opt.strike.toFixed(2);
-            if(mid!=null) document.getElementById('premium').value = mid.toFixed(2);
+          tr.onclick=()=>{
+            document.getElementById('strike').value=opt.strike.toFixed(2);
+            if(mid!=null) document.getElementById('premium').value=mid.toFixed(2);
             if(ivUse!=null && document.getElementById('ivSource').value==='live'){
-              document.getElementById('iv').value = ivUse.toFixed(2);
+              document.getElementById('iv').value=ivUse.toFixed(2);
             }
             updateAll();
           };
 
-          // Skew warning
-          if(skew!=null && skew>15){
-            showError('SKEW_WARNING: High skew (>15). Consider OTM before crush.');
-          }
-
+          if(skew!=null && skew>15) showError('SKEW_WARNING: High skew (>15). Consider OTM before crush.');
           tbody.appendChild(tr);
         }
 
         document.getElementById('chainContainer').style.display='block';
         document.getElementById('currentGreeks').innerHTML =
-          `<span class="fetch-success">FETCH_CHAIN_SUCCESS: Options chain updated <strong>[Live / Snapshot]</strong> [${new Date().toISOString()}]</span>`;
+          `<span class="fetch-success">FETCH_CHAIN_SUCCESS: Options chain updated [${new Date().toISOString()}]</span>`;
 
-        // If we had NO numeric mids at all, tell user it may be AH
-        if(!firstNumericMidSet) showError('INFO: No tradable bid/ask mids — likely after-hours. You can still click a strike to use greeks.');
-      }catch(e){
-        showError('FETCH_CHAIN_ERROR: '+e.message);
-      }
+        if(!firstNumericMidSet) showError('INFO: No tradable bid/ask mids — likely after-hours. Click a strike to proceed.');
+      }catch(e){ showError('FETCH_CHAIN_ERROR: '+e.message); }
     }
 
     async function applyEtfProxy(){
@@ -568,28 +518,24 @@
       }catch(e){ showError('PROXY_ERROR: '+e.message); }
     }
 
-    function setEdrDays(days){
-      try{ document.getElementById('edrDays').value=days; updateAll(); }
-      catch(e){ showError('SET_EDR_DAYS_ERROR: '+e.message); }
-    }
+    function setEdrDays(days){ try{ document.getElementById('edrDays').value=days; updateAll(); }catch(e){ showError('SET_EDR_DAYS_ERROR: '+e.message); } }
 
     function updateAll(){
       try{
         if(!validateInputs()) return;
         const spxPrice=parseFloat(document.getElementById('spx').value);
-        const sigma = parseFloat(document.getElementById('iv').value)/100;
-        const K = parseFloat(document.getElementById('strike').value)||spxPrice;
-        const T = calculateDTE(document.getElementById('expiration').value);
+        const sigma=parseFloat(document.getElementById('iv').value)/100;
+        const K=parseFloat(document.getElementById('strike').value)||spxPrice;
+        const T=calculateDTE(document.getElementById('expiration').value);
         if(T<=0.0001){ showError('T_ZERO: Expiration passed/invalid'); return; }
         const r=parseFloat(document.getElementById('r').value)/100;
         const q=parseFloat(document.getElementById('q').value)/100;
         const premium=parseFloat(document.getElementById('premium').value);
         const contracts=parseInt(document.getElementById('contracts').value);
         const type=document.getElementById('optionType').value;
-        const edrDays = parseInt(document.getElementById('edrDays').value);
-        const customEdr = parseFloat(document.getElementById('customEdr').value) || (sigma*Math.sqrt(edrDays/365)*1.96*100);
+        const edrDays=parseInt(document.getElementById('edrDays').value);
+        const customEdr=parseFloat(document.getElementById('customEdr').value) || (sigma*Math.sqrt(edrDays/365)*1.96*100);
 
-        const g=blackScholesGreeks(spxPrice,K,T,r,sigma,q,type);
         const tbody=document.getElementById('positionTable').querySelector('tbody');
         tbody.innerHTML='';
 
@@ -601,33 +547,32 @@
           {name:'Profit Target',S:solveForS(premium*2,spxPrice,K,T,r,sigma,q,type,contracts),mult:2},
           {name:'High Profit',S:solveForS(premium*3,spxPrice,K,T,r,sigma,q,type,contracts),mult:3}
         ];
-
         scenarios.forEach(sc=>{
-          const sg=blackScholesGreeks(sc.S,K,T,r,sigma,q,type);
-          const pl=(sg.price - premium)*contracts*100;
+          const g=blackScholesGreeks(sc.S,K,T,r,sigma,q,type);
+          const pl=(g.price - premium)*contracts*100;
           const tr=document.createElement('tr');
           tr.className = sc.name==='Current' ? 'current-row' : (sc.mult===2?'profit-row':(sc.mult===3?'high-profit-row':''));
           tr.innerHTML = `<td>${sc.name}</td><td>${sc.S.toFixed(2)}</td>`+
-                         `<td>${(sg.delta*contracts).toFixed(2)}</td>`+
-                         `<td>${(sg.gamma*contracts).toFixed(4)}</td>`+
-                         `<td>${(sg.theta*contracts).toFixed(2)}</td>`+
-                         `<td>${(sg.vega*contracts).toFixed(2)}</td>`+
-                         `<td>${sg.price.toFixed(2)}</td><td>${pl.toFixed(2)}</td>`;
+                         `<td>${(g.delta*contracts).toFixed(2)}</td>`+
+                         `<td>${(g.gamma*contracts).toFixed(4)}</td>`+
+                         `<td>${(g.theta*contracts).toFixed(2)}</td>`+
+                         `<td>${(g.vega*contracts).toFixed(2)}</td>`+
+                         `<td>${g.price.toFixed(2)}</td><td>${pl.toFixed(2)}</td>`;
           tbody.appendChild(tr);
         });
 
         const dteTbody=document.getElementById('dteTable').querySelector('tbody');
         dteTbody.innerHTML='';
         [T, T*0.75, T*0.5, T*0.25].forEach(d=>{
-          const dg=blackScholesGreeks(spxPrice,K,d,r,sigma,q,type);
-          const note = (dg.theta*contracts < -600) ? 'Sell/Exit: High theta burn' :
-                       (dg.vega*contracts > 6000)   ? 'Vol Sensitive: Monitor VIX' : '';
+          const g=blackScholesGreeks(spxPrice,K,d,r,sigma,q,type);
+          const note = (g.theta*contracts < -600) ? 'Sell/Exit: High theta burn' :
+                       (g.vega*contracts  > 6000) ? 'Vol Sensitive: Monitor VIX' : '';
           const tr=document.createElement('tr');
-          tr.innerHTML=`<td>${(d*365).toFixed(0)}</td><td>${(dg.theta*contracts).toFixed(2)}</td><td>${(dg.vega*contracts).toFixed(2)}</td><td>${note}</td>`;
+          tr.innerHTML=`<td>${(d*365).toFixed(0)}</td><td>${(g.theta*contracts).toFixed(2)}</td><td>${(g.vega*contracts).toFixed(2)}</td><td>${note}</td>`;
           dteTbody.appendChild(tr);
         });
 
-        // charts (unchanged from your V27)
+        // charts (same as before) ...
         if(charts.delta) charts.delta.destroy();
         if(charts.gamma) charts.gamma.destroy();
         if(charts.theta) charts.theta.destroy();
@@ -682,7 +627,7 @@
       }catch(e){ showError('UPDATE_ALL_ERROR: '+e.message); }
     }
 
-    window.onerror = function(msg,url,lineNo,columnNo,error){
+    window.onerror = function (msg,url,lineNo,columnNo,error){
       showError('GLOBAL_JS_ERROR: '+msg+' [Line '+lineNo+':'+columnNo+']');
       return false;
     };
@@ -694,8 +639,7 @@
         const p=fmt.formatToParts(new Date());
         const h=parseInt(p.find(x=>x.type==='hour').value);
         const m=parseInt(p.find(x=>x.type==='minute').value);
-        const today=new Date().toISOString().split('T')[0];
-        const isHoliday=holidays.includes(today);
+        const isHoliday=['2025-09-01','2025-11-27','2025-12-25'].includes(new Date().toISOString().split('T')[0]);
         if(!isHoliday && (h>9 || (h===9&&m>=30)) && h<16){ fetchLiveData(); }
       }catch(e){ showError('API_KEY_CHANGE_ERROR: '+e.message); }
     });
@@ -710,10 +654,22 @@
     });
   </script>
 
-  <p id="notes">Notes: Model calibrated… (unchanged text)</p>
+  <p id="notes">Notes: Model calibrated to match: delta &#126;0.98, gamma &#126;0.54, theta &#126;-391, vega &#126;5118 at SPX 6541. Fetch chain for contract selection (suggest delta 0.4-0.6). EDR 95% range (override blank for auto). Contango uses front VIX future/spot. Colors color-blind friendly. For short-term: Use DTE forecast for buy/sell timing (e.g., sell on high theta). Not financial advice.</p>
 
+  <!-- FULL FINRA DISCLOSURE RESTORED -->
   <div id="finra-disclosure" class="finra-disclosure">
-    <h3>Full FINRA Options Disclosure</h3> <p>Options involve risks and are not suitable for all investors. Prior to buying or selling an option, a person must receive a copy of <em>Characteristics and Risks of Standardized Options</em>. Copies of this document may be obtained from your broker, from any exchange on which options are traded or by contacting The Options Clearing Corporation at 125 S. Franklin Street, Suite 1200, Chicago, IL 60606 (1-888-678-4667). The document is also available at <a href="https://www.theocc.com/Company-Information/Documents-and-Archives/Options-Disclosure-Document" target="_blank">www.theocc.com</a>.</p> <p>Key risks include, but are not limited to:</p> <ul> <li><strong>Risk of Loss:</strong> You may lose your entire investment or more, particularly with uncovered options strategies.</li> <li><strong>Complexity:</strong> Options are complex financial instruments. Understanding their pricing, strategies, and risks requires significant knowledge and experience.</li> <li><strong>Leverage:</strong> Options provide significant leverage, which can amplify both gains and losses.</li> <li><strong>Time Decay:</strong> The value of options may decrease rapidly as expiration approaches, even if the underlying asset's price remains unchanged.</li> <li><strong>Market Risk:</strong> Options are subject to market volatility, liquidity risks, and changes in the underlying asset's price.</li> <li><strong>Assignment Risk:</strong> Sellers of options may be assigned at any time before expiration, requiring delivery of the underlying asset or cash settlement.</li> </ul> <p>Investors should consult with a financial advisor and thoroughly understand these risks before engaging in options trading. This tool provides theoretical calculations based on the Black-Scholes model and does not guarantee actual market outcomes. Use for educational purposes only.</p> 
-  </div> 
-</body> 
+    <h3>Full FINRA Options Disclosure</h3>
+    <p>Options involve risks and are not suitable for all investors. Prior to buying or selling an option, a person must receive a copy of <em>Characteristics and Risks of Standardized Options</em>. Copies of this document may be obtained from your broker, from any exchange on which options are traded or by contacting The Options Clearing Corporation at 125 S. Franklin Street, Suite 1200, Chicago, IL 60606 (1-888-678-4667). The document is also available at <a href="https://www.theocc.com/Company-Information/Documents-and-Archives/Options-Disclosure-Document" target="_blank">www.theocc.com</a>.</p>
+    <p>Key risks include, but are not limited to:</p>
+    <ul>
+      <li><strong>Risk of Loss:</strong> You may lose your entire investment or more, particularly with uncovered options strategies.</li>
+      <li><strong>Complexity:</strong> Options are complex financial instruments. Understanding their pricing, strategies, and risks requires significant knowledge and experience.</li>
+      <li><strong>Leverage:</strong> Options provide significant leverage, which can amplify both gains and losses.</li>
+      <li><strong>Time Decay:</strong> The value of options may decrease rapidly as expiration approaches, even if the underlying asset's price remains unchanged.</li>
+      <li><strong>Market Risk:</strong> Options are subject to market volatility, liquidity risks, and changes in the underlying asset's price.</li>
+      <li><strong>Assignment Risk:</strong> Sellers of options may be assigned at any time before expiration, requiring delivery of the underlying asset or cash settlement.</li>
+    </ul>
+    <p>Investors should consult with a financial advisor and thoroughly understand these risks before engaging in options trading. This tool provides theoretical calculations based on the Black-Scholes model and does not guarantee actual market outcomes. Use for educational purposes only.</p>
+  </div>
+</body>
 </html>
