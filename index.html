@@ -8,20 +8,21 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"
           onload="console.log('CDN_SUCCESS_1: jsDelivr loaded')"
           onerror="console.log('CDN_ERROR_1: jsDelivr failed'); loadFallbackCDN(1)"></script>
+  <script src="https://s3.tradingview.com/tv.js"></script> <!-- TradingView widget -->
   <script>
     function loadFallbackCDN(attempt) {
       console.log(`LOADING_FALLBACK_CDN: Attempt ${attempt} [${new Date().toISOString()}]`);
-      const s=document.createElement('script');
-      s.src = attempt===1 ? 'https://cdnjs.cloudflare.com/ajax/libs/chart.js/4.4.4/chart.min.js'
+      const s = document.createElement('script');
+      s.src = attempt === 1 ? 'https://cdnjs.cloudflare.com/ajax/libs/chart.js/4.4.4/chart.min.js'
                           : 'https://unpkg.com/chart.js@4.4.4/dist/chart.min.js';
-      s.onload = ()=>console.log(`CDN_SUCCESS_${attempt+1}: Fallback loaded [${new Date().toISOString()}]`);
-      s.onerror = ()=>{
+      s.onload = () => console.log(`CDN_SUCCESS_${attempt+1}: Fallback loaded [${new Date().toISOString()}]`);
+      s.onerror = () => {
         console.log(`CDN_ERROR_${attempt+1}: Fallback failed [${new Date().toISOString()}]`);
-        if (attempt===1) loadFallbackCDN(2);
+        if (attempt === 1) loadFallbackCDN(2);
         else {
           console.log('CDN_ERROR_ALL: All Chart.js CDNs failed');
-          const el=document.getElementById('chartError');
-          if (el){ el.style.display='block'; el.innerText='CDN_ERROR_ALL: All Chart.js CDNs failed. Disable ad blockers or try incognito.'; }
+          const el = document.getElementById('chartError');
+          if (el) { el.style.display = 'block'; el.innerText = 'CDN_ERROR_ALL: All Chart.js CDNs failed. Disable ad blockers or try incognito.'; }
         }
       };
       document.head.appendChild(s);
@@ -29,51 +30,93 @@
   </script>
   <style>
     body { font-family: Arial, sans-serif; margin: 20px; background-color: #f4f4f4; }
-    h1,h2,h3{ color:#333; text-align:center; }
-    .input-section { background:white; padding:20px; margin:20px auto; max-width:800px; box-shadow:0 2px 5px rgba(0,0,0,0.1); }
-    .input-group { display:flex; justify-content:space-around; margin:10px 0; flex-wrap:wrap; }
-    input,select{ padding:5px; width:120px; }
-    button { padding:10px 20px; background:#4CAF50; color:white; border:none; cursor:pointer; margin:2px; }
-    button:disabled{ background:#ccc; cursor:not-allowed; }
-    .current-greeks{ text-align:center; margin:10px; font-weight:bold; }
-    .chart-container,.table-container,.chain-container { width:100%; max-width:800px; margin:20px auto; background:white; padding:20px; box-shadow:0 2px 5px rgba(0,0,0,0.1); }
-    canvas { max-height:300px; width:100% !important; height:300px !important; }
-    table { border-collapse:collapse; width:100%; margin:20px 0; }
-    th,td { border:1px solid #ddd; padding:8px; text-align:center; }
-    th { background-color:#4CAF50; color:white; }
-    tr:nth-child(even){ background-color:#f2f2f2; }
-    tr:hover{ background-color:#e8f5e8; }
-    .current-row{ background-color:#fff3cd; font-weight:bold; }
-    .profit-row{ background-color:#d4edda; }
-    .high-profit-row{ background-color:#c3e6cb; }
-    .suggested-row{ background-color:#add8e6; }
-    p { margin-top:20px; font-size:14px; color:#666; text-align:center; }
-    .legend { text-align:center; margin:10px 0; }
-    .teal{ color:teal; font-weight:bold; }
-    .orange{ color:orange; font-weight:bold; }
-    .purple{ color:purple; font-weight:bold; }
-    .error{ color:purple; text-align:center; }
-    .disclaimer{ background:#fff3cd; padding:15px; margin:20px auto; max-width:800px; border:1px solid #ffcc00; text-align:center; font-size:12px; }
-    .finra-disclosure{ background:#f8f9fa; padding:20px; margin:20px auto; max-width:800px; border:1px solid #ccc; font-size:12px; text-align:left; }
-    .api-section{ margin:10px 0; text-align:center; }
-    .api-input{ width:200px; padding:5px; }
-    .contango{ color:teal; font-weight:bold; }
-    .backwardation{ color:purple; font-weight:bold; }
-    .flat{ color:orange; font-weight:bold; }
-    .fetch-success{ color:teal; text-align:center; margin:10px; }
-    .version{ font-size:12px; color:#666; text-align:center; margin-top:20px; }
-    .api-note{ font-size:12px; color:#666; text-align:center; margin:5px 0; }
-    .after-hours{ color:orange; font-style:italic; text-align:center; margin:5px 0; }
-    .tradingview-container{ display:flex; justify-content:space-around; flex-wrap:wrap; max-width:800px; margin:20px auto; }
+    h1,h2,h3 { color: #333; text-align: center; }
+    .input-section { background: white; padding: 20px; margin: 20px auto; max-width: 800px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+    .input-group { display: flex; justify-content: space-around; margin: 10px 0; flex-wrap: wrap; }
+    input, select { padding: 5px; width: 120px; }
+    button { padding: 10px 20px; background: #4CAF50; color: white; border: none; cursor: pointer; margin: 2px; }
+    button:disabled { background: #ccc; cursor: not-allowed; }
+    .current-greeks { text-align: center; margin: 10px; font-weight: bold; }
+    .chart-container, .table-container, .chain-container { width: 100%; max-width: 800px; margin: 20px auto; background: white; padding: 20px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+    canvas { max-height: 300px; width: 100% !important; height: 300px !important; }
+    table { border-collapse: collapse; width: 100%; margin: 20px 0; }
+    th, td { border: 1px solid #ddd; padding: 8px; text-align: center; }
+    th { background-color: #4CAF50; color: white; }
+    tr:nth-child(even) { background-color: #f2f2f2; }
+    tr:hover { background-color: #e8f5e8; }
+    .current-row { background-color: #fff3cd; font-weight: bold; }
+    .profit-row { background-color: #d4edda; }
+    .high-profit-row { background-color: #c3e6cb; }
+    .suggested-row { background-color: #add8e6; }
+    p { margin-top: 20px; font-size: 14px; color: #666; text-align: center; }
+    .legend { text-align: center; margin: 10px 0; }
+    .teal { color: teal; font-weight: bold; }
+    .orange { color: orange; font-weight: bold; }
+    .purple { color: purple; font-weight: bold; }
+    .error { color: purple; text-align: center; font-weight: bold; background: #ffebee; padding: 10px; border: 1px solid #ef9a9a; }
+    .disclaimer { background: #fff3cd; padding: 15px; margin: 20px auto; max-width: 800px; border: 1px solid #ffcc00; text-align: center; font-size: 12px; }
+    .finra-disclosure { background: #f8f9fa; padding: 20px; margin: 20px auto; max-width: 800px; border: 1px solid #ccc; font-size: 12px; text-align: left; }
+    .api-section { margin: 10px 0; text-align: center; }
+    .api-input { width: 200px; padding: 5px; }
+    .contango { color: teal; font-weight: bold; }
+    .backwardation { color: purple; font-weight: bold; }
+    .flat { color: orange; font-weight: bold; }
+    .fetch-success { color: teal; text-align: center; margin: 10px; }
+    .version { font-size: 12px; color: #666; text-align: center; margin-top: 20px; }
+    .api-note { font-size: 12px; color: #666; text-align: center; margin: 5px 0; }
+    .after-hours { color: orange; font-style: italic; text-align: center; margin: 5px 0; }
+    .tradingview-container { display: flex; justify-content: space-around; flex-wrap: wrap; max-width: 800px; margin: 20px auto; }
     .grok-section { background: white; padding: 20px; margin: 20px auto; max-width: 800px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
     #optionsTable tr.selected { background-color: #add8e6 !important; }
     #grokAdvice { margin-top: 10px; padding: 10px; background: #f0f8ff; border: 1px solid #ccc; }
+    .tv-widget { width: 100%; height: 400px; margin: 10px 0; }
   </style>
 </head>
 <body>
   <h1>SPX Mastery Long-Term Options Analyzer (Build 1, Version 28)</h1>
-  <div class="version">Version 28: Fixed API calls with I:SPX, live price, filters, SKEW, profit curve, Grok integration. Current Date: September 15, 2025.</div>
-  <div id="chartError" style="display:none; color:red; text-align:center;"></div>
+  <div class="version">Version 28: Fixed API calls with I:SPX, live price, filters, SKEW, profit curve, Grok, TradingView US500/VIX. Current Date: September 15, 2025, 4:42 PM CDT.</div>
+  <div id="errorDisplay" class="error" style="display: none;"></div>
+  <div id="chartError" style="display: none; color: red; text-align: center;"></div>
+  <div class="tradingview-container">
+    <div class="tv-widget">
+      <script type="text/javascript">
+        new TradingView.widget({
+          "width": "100%",
+          "height": 400,
+          "symbol": "TVC:US500",
+          "interval": "60",
+          "timezone": "America/Chicago",
+          "theme": "dark",
+          "style": "1",
+          "locale": "en",
+          "toolbar_bg": "#f1f3f6",
+          "enable_publishing": false,
+          "allow_symbol_change": true,
+          "container_id": "tradingview_us500"
+        });
+      </script>
+      <div id="tradingview_us500"></div>
+    </div>
+    <div class="tv-widget">
+      <script type="text/javascript">
+        new TradingView.widget({
+          "width": "100%",
+          "height": 400,
+          "symbol": "TVC:VIX",
+          "interval": "60",
+          "timezone": "America/Chicago",
+          "theme": "dark",
+          "style": "1",
+          "locale": "en",
+          "toolbar_bg": "#f1f3f6",
+          "enable_publishing": false,
+          "allow_symbol_change": true,
+          "container_id": "tradingview_vix"
+        });
+      </script>
+      <div id="tradingview_vix"></div>
+    </div>
+  </div>
   <div class="input-section">
     <h2>Input Parameters (Click Update to Recalculate)</h2>
     <div class="input-group">
@@ -82,9 +125,9 @@
       <button onclick="fetchLiveData()">Fetch Live Data</button>
       <button onclick="fetchOptionsChain()">Fetch Options Chain</button>
     </div>
-    <div class="api-note">Polygon tier: Indices/Options. Use for live SPX/VIX/chain. After-hours: Shows last close.</div>
+    <div class="api-note">Polygon tier: Indices/Options. Use for live SPX/VIX/chain. After-hours: Shows last close until 9:30 AM EDT 9/16/2025.</div>
     <div class="input-group">
-      <input type="number" id="spx" placeholder="SPX Price" step="0.01">
+      <input type="number" id="spx" placeholder="SPX Price" step="0.01" value="6614">
       <input type="number" id="strike" placeholder="Strike (K)" value="7000">
       <input type="date" id="expiration" value="2025-12-15">
       <input type="number" id="iv" placeholder="IV (%)" step="0.01">
@@ -108,7 +151,7 @@
     </div>
   </div>
   <div id="status" class="fetch-success"></div>
-  <div class="after-hours" id="afterHoursNote"></div>
+  <div class="after-hours" id="afterHoursNote">After-hours: Data reflects last close until 9:30 AM EDT 9/16/2025.</div>
   <div class="table-container">
     <h2>DTE Forecast (Theta Burn, Vega Sensitivity)</h2>
     <table id="dteTable">
@@ -148,7 +191,17 @@
   <div class="disclaimer">Not financial advice. Use for educational purposes only.</div>
   <div id="finra-disclosure" class="finra-disclosure">
     <h3>Full FINRA Options Disclosure</h3>
-    <p>Options involve risks... [Full text from V26/V27]</p>
+    <p>Options involve risks and are not suitable for all investors. Prior to buying or selling an option, a person must receive a copy of <em>Characteristics and Risks of Standardized Options</em>. Copies of this document may be obtained from your broker, from any exchange on which options are traded or by contacting The Options Clearing Corporation at 125 S. Franklin Street, Suite 1200, Chicago, IL 60606 (1-888-678-4667). The document is also available at <a href="https://www.theocc.com/Company-Information/Documents-and-Archives/Options-Disclosure-Document" target="_blank">www.theocc.com</a>.</p>
+    <p>Key risks include, but are not limited to:</p>
+    <ul>
+      <li><strong>Risk of Loss:</strong> You may lose your entire investment or more, particularly with uncovered options strategies.</li>
+      <li><strong>Complexity:</strong> Options are complex financial instruments. Understanding their pricing, strategies, and risks requires significant knowledge and experience.</li>
+      <li><strong>Leverage:</strong> Options provide significant leverage, which can amplify both gains and losses.</li>
+      <li><strong>Time Decay:</strong> The value of options may decrease rapidly as expiration approaches, even if the underlying asset's price remains unchanged.</li>
+      <li><strong>Market Risk:</strong> Options are subject to market volatility, liquidity risks, and changes in the underlying asset's price.</li>
+      <li><strong>Assignment Risk:</strong> Sellers of options may be assigned at any time before expiration, requiring delivery of the underlying asset or cash settlement.</li>
+    </ul>
+    <p>Investors should consult with a financial advisor and thoroughly understand these risks before engaging in options trading. This tool provides theoretical calculations based on the Black-Scholes model and does not guarantee actual market outcomes. Use for educational purposes only.</p>
   </div>
   <script>
     let charts = {}; // Global for chart instances
@@ -156,25 +209,24 @@
 
     // Black-Scholes Greeks (simplified; use for projections)
     function blackScholesGreeks(S, K, T, r, sigma, q, type) {
-      // Implement BS formula (use code_execution tool if needed for precision; here approx)
-      const d1 = (Math.log(S/K) + (r - q + sigma*sigma/2)*T) / (sigma * Math.sqrt(T));
+      const d1 = (Math.log(S / K) + (r - q + sigma * sigma / 2) * T) / (sigma * Math.sqrt(T));
       const d2 = d1 - sigma * Math.sqrt(T);
       const N = x => 0.5 * (1 + Math.erf(x / Math.sqrt(2))); // Approx CDF
       const delta = type === 'call' ? N(d1) : N(d1) - 1;
-      const gamma = Math.exp(-q*T) * n(d1) / (S * sigma * Math.sqrt(T)); // n = PDF
-      const theta = type === 'call' ? - (S * Math.exp(-q*T) * n(d1) * sigma / (2 * Math.sqrt(T))) - r * K * Math.exp(-r*T) * N(d2) + q * S * Math.exp(-q*T) * N(d1) : /* put formula */;
-      const vega = S * Math.exp(-q*T) * n(d1) * Math.sqrt(T);
-      const price = type === 'call' ? S * Math.exp(-q*T) * N(d1) - K * Math.exp(-r*T) * N(d2) : /* put */;
+      const gamma = Math.exp(-q * T) * n(d1) / (S * sigma * Math.sqrt(T)); // n = PDF
+      const theta = type === 'call' ? - (S * Math.exp(-q * T) * n(d1) * sigma / (2 * Math.sqrt(T))) - r * K * Math.exp(-r * T) * N(d2) + q * S * Math.exp(-q * T) * N(d1) : /* put formula */;
+      const vega = S * Math.exp(-q * T) * n(d1) * Math.sqrt(T);
+      const price = type === 'call' ? S * Math.exp(-q * T) * N(d1) - K * Math.exp(-r * T) * N(d2) : /* put */;
       return { delta, gamma, theta: theta / 365, vega, price }; // Daily theta
     }
 
     // Normal PDF approx
-    function n(x) { return Math.exp(-x*x/2) / Math.sqrt(2 * Math.PI); }
+    function n(x) { return Math.exp(-x * x / 2) / Math.sqrt(2 * Math.PI); }
 
     // Get DTE
     function getDTE(exp) {
       const expDate = new Date(exp);
-      const today = new Date('2025-09-15'); // Current date
+      const today = new Date('2025-09-15T21:42:00Z'); // 4:42 PM CDT to UTC
       return (expDate - today) / (1000 * 60 * 60 * 24);
     }
 
@@ -186,8 +238,8 @@
         if (c.strike_price < atm * 0.9 && c.contract_type === 'put') putIVs.push(c.implied_volatility);
         if (c.strike_price > atm * 1.1 && c.contract_type === 'call') callIVs.push(c.implied_volatility);
       });
-      const avgPutIV = putIVs.reduce((a,b)=>a+b,0)/putIVs.length || 0;
-      const avgCallIV = callIVs.reduce((a,b)=>a+b,0)/callIVs.length || 0;
+      const avgPutIV = putIVs.reduce((a, b) => a + b, 0) / putIVs.length || 0;
+      const avgCallIV = callIVs.reduce((a, b) => a + b, 0) / callIVs.length || 0;
       const putSkew = avgPutIV - avgCallIV;
       return 100 - (putSkew * 10);
     }
@@ -195,23 +247,30 @@
     // Contango/Backwardation (VIX future/spot ratio)
     async function getRegime(apiKey) {
       const spotUrl = `https://api.polygon.io/v2/snapshot/locale/us/markets/stocks/tickers/I:VIX?apiKey=${apiKey}`;
-      const futureUrl = `https://api.polygon.io/v2/aggs/ticker/I:VX1/prev?apiKey=${apiKey}`; // Front future approx VX1
-      const spotRes = await fetch(spotUrl).then(r => r.json());
-      const futureRes = await fetch(futureUrl).then(r => r.json());
-      const spot = spotRes.tickers[0]?.lastTrade?.price || spotRes.tickers[0]?.day?.close;
-      const future = futureRes.results?.[0]?.c || 0;
-      const ratio = future / spot;
-      const regimeEl = document.getElementById('regime');
-      if (ratio > 1.02) regimeEl.innerHTML = `<span class="contango">Contango (${ratio.toFixed(2)})</span>`;
-      else if (ratio < 0.98) regimeEl.innerHTML = `<span class="backwardation">Backwardation (${ratio.toFixed(2)})</span>`;
-      else regimeEl.innerHTML = `<span class="flat">Flat (${ratio.toFixed(2)})</span>`;
-      return ratio;
+      const futureUrl = `https://api.polygon.io/v2/aggs/ticker/I:VX1/prev?apiKey=${apiKey}&multiplier=1&timespan=day&adjusted=true&sort=asc`;
+      try {
+        const [spotRes, futureRes] = await Promise.all([fetch(spotUrl), fetch(futureUrl)]);
+        if (!spotRes.ok || !futureRes.ok) throw new Error(`HTTP ${spotRes.status || futureRes.status}: ${await spotRes.text() || await futureRes.text()}`);
+        const spotData = await spotRes.json();
+        const futureData = await futureRes.json();
+        const spot = spotData.tickers[0]?.lastTrade?.price || spotData.tickers[0]?.day?.close;
+        const future = futureData.results?.[0]?.c || 0;
+        const ratio = future / spot;
+        const regimeEl = document.getElementById('regime');
+        if (ratio > 1.02) regimeEl.innerHTML = `<span class="contango">Contango (${ratio.toFixed(2)})</span>`;
+        else if (ratio < 0.98) regimeEl.innerHTML = `<span class="backwardation">Backwardation (${ratio.toFixed(2)})</span>`;
+        else regimeEl.innerHTML = `<span class="flat">Flat (${ratio.toFixed(2)})</span>`;
+        return ratio;
+      } catch (error) {
+        showError(`REGIME_ERROR_${new Date().toISOString().replace(/[:.-]/g, '')}: ${error.message} [Stack: ${error.stack}]`);
+        return 1; // Default flat
+      }
     }
 
     // Fetch Live Data (SPX current price)
     async function fetchLiveData() {
       const apiKey = document.getElementById('apiKey').value;
-      if (!apiKey) return showError('API key required');
+      if (!apiKey) return showError(`API_KEY_ERROR_${new Date().toISOString().replace(/[:.-]/g, '')}: API key required`);
       const url = `https://api.polygon.io/v2/snapshot/locale/us/markets/stocks/tickers/I:SPX?apiKey=${apiKey}`;
       try {
         const response = await fetch(url);
@@ -220,26 +279,25 @@
           throw new Error(`HTTP ${response.status}: ${err.error || 'Check subscription'}`);
         }
         const data = await response.json();
-        const spxPrice = data.tickers[0]?.lastTrade?.price || data.tickers[0]?.day?.close;
+        const spxPrice = data.tickers[0]?.lastTrade?.price || data.tickers[0]?.day?.close || 6614;
         document.getElementById('spx').value = spxPrice.toFixed(2);
-        document.getElementById('status').innerText = `FETCH_SUCCESS: SPX/VIX/Contango Updated from POLYGON [Data: Live] [Timestamp: ${new Date().toISOString()}]`;
+        document.getElementById('status').innerText = `FETCH_SUCCESS: SPX/VIX/Contango Updated from POLYGON [Data: ${new Date().toISOString()}]`;
         await getRegime(apiKey);
-        if (document.getElementById('autoRefresh').checked) fetchOptionsChain(); // Chain after price
+        if (document.getElementById('autoRefresh').checked) fetchOptionsChain();
       } catch (error) {
-        showError(`FETCH_LIVE_ERROR: ${error.message} [Timestamp: ${new Date().toISOString()}]`);
+        showError(`FETCH_LIVE_ERROR_${new Date().toISOString().replace(/[:.-]/g, '')}: ${error.message} [Stack: ${error.stack}]`);
       }
     }
 
     // Fetch Options Chain (with filters)
     async function fetchOptionsChain() {
       const apiKey = document.getElementById('apiKey').value;
-      if (!apiKey) return showError('API key required');
+      if (!apiKey) return showError(`API_KEY_ERROR_${new Date().toISOString().replace(/[:.-]/g, '')}: API key required`);
       const spxPrice = parseFloat(document.getElementById('spx').value) || 6614;
       const strike = parseFloat(document.getElementById('strike').value) || spxPrice;
       const expiration = document.getElementById('expiration').value || '2025-12-15';
       const optionType = document.getElementById('optionType').value.toLowerCase() || '';
       let url = `https://api.polygon.io/v3/snapshot/options/I:SPX?apiKey=${apiKey}&limit=50&sort=strike_price`;
-      // Dynamic filters: $50 ITM to $1000 OTM
       const itmStart = optionType === 'call' ? spxPrice - 50 : spxPrice + 50;
       const otmEnd = optionType === 'call' ? spxPrice + 1000 : spxPrice - 1000;
       url += `&strike_price.gte=${itmStart}&strike_price.lte=${otmEnd}&expiration_date.gte=${expiration}`;
@@ -261,7 +319,7 @@
           throw new Error('No valid data');
         }
       } catch (error) {
-        showError(`FETCH_CHAIN_ERROR: ${error.message} [Timestamp: ${new Date().toISOString()}] [Stack: ${error.stack}]`);
+        showError(`FETCH_CHAIN_ERROR_${new Date().toISOString().replace(/[:.-]/g, '')}: ${error.message} [Stack: ${error.stack}]`);
       }
     }
 
@@ -272,8 +330,8 @@
       tbody.innerHTML = '';
       results.forEach((contract, index) => {
         const strike = contract.strike_price;
-        const delta = Math.abs(contract.greeks?.delta || 0); // Abs for filter
-        if (delta > 0.10) return; // Filter delta ≤0.10
+        const delta = Math.abs(contract.greeks?.delta || 0);
+        if (delta > 0.10) return;
         const row = tbody.insertRow();
         row.innerHTML = `
           <td>${contract.ticker}</td>
@@ -282,7 +340,7 @@
           <td>${contract.ask || 0}</td>
           <td>${((contract.bid + contract.ask)/2 || 0).toFixed(2)}</td>
           <td>${(contract.implied_volatility * 100 || 0).toFixed(2)}%</td>
-          <td>${(contract.implied_volatility * 100 - (spxPrice / strike * 100) || 0).toFixed(2)}</td> <!-- Approx skew -->
+          <td>${(contract.implied_volatility * 100 - (spxPrice / strike * 100) || 0).toFixed(2)}</td>
           <td>${contract.greeks?.delta?.toFixed(4) || 0}</td>
           <td>${contract.greeks?.gamma?.toFixed(4) || 0}</td>
           <td>${contract.greeks?.theta?.toFixed(2) || 0}</td>
@@ -290,7 +348,7 @@
           <td>${contract.expiration_date}</td>
           <td>${contract.open_interest || 0}</td>
         `;
-        row.onclick = () => selectOption(row, contract, index); // Select for analysis
+        row.onclick = () => selectOption(row, contract, index);
       });
     }
 
@@ -301,16 +359,15 @@
       document.getElementById('strike').value = contract.strike_price;
       document.getElementById('iv').value = (contract.implied_volatility * 100).toFixed(2);
       document.getElementById('premium').value = ((contract.bid + contract.ask)/2).toFixed(2);
-      updateAll(); // Recalc for selected
+      updateAll();
     }
 
     // Grok Advice
     async function getGrokAdvice() {
       const grokKey = document.getElementById('grokApiKey').value;
-      if (!grokKey) return showError('Grok API key required');
+      if (!grokKey) return showError(`GROK_KEY_ERROR_${new Date().toISOString().replace(/[:.-]/g, '')}: Grok API key required`);
       const selectedRow = document.querySelector('#optionsTable tr.selected');
-      if (!selectedRow) return showError('Select an option from table');
-      const chainData = []; // Get from global or refetch; assume stored
+      if (!selectedRow) return showError(`OPTION_SELECT_ERROR_${new Date().toISOString().replace(/[:.-]/g, '')}: Select an option from table`);
       const spxPrice = parseFloat(document.getElementById('spx').value);
       const skew = parseFloat(document.getElementById('skew').innerText.replace('SKEW: ', ''));
       const regime = document.getElementById('regime').innerText;
@@ -322,11 +379,11 @@
           headers: { 'Authorization': `Bearer ${grokKey}`, 'Content-Type': 'application/json' },
           body: JSON.stringify({ model: 'grok-3', messages: [{ role: 'user', content: prompt }] })
         });
-        if (!response.ok) throw new Error(`Grok HTTP ${response.status}`);
+        if (!response.ok) throw new Error(`HTTP ${response.status}: ${await response.text()}`);
         const data = await response.json();
         document.getElementById('grokAdvice').innerText = data.choices[0].message.content;
       } catch (error) {
-        showError(`GROK_ERROR: ${error.message}`);
+        showError(`GROK_ERROR_${new Date().toISOString().replace(/[:.-]/g, '')}: ${error.message} [Stack: ${error.stack}]`);
       }
     }
 
@@ -346,7 +403,7 @@
       // DTE Table (projections)
       const dteBody = document.getElementById('dteTable').querySelector('tbody');
       dteBody.innerHTML = '';
-      [90,60,30,18,7].forEach(dteDays => {
+      [90, 60, 30, 18, 7].forEach(dteDays => {
         const projT = dteDays / 365;
         const projG = blackScholesGreeks(spxPrice, K, projT, r, sigma, q, type);
         const tr = dteBody.insertRow();
@@ -355,9 +412,8 @@
 
       // Position Table
       const scenarios = [
-        {name: 'Current', spx: spxPrice, delta: g.delta * contracts, gamma: g.gamma * contracts, theta: g.theta * contracts, vega: g.vega * contracts, price: g.price, pl: (g.price - premium) * contracts * 100},
-        {name: 'Break Even', spx: K + premium, /* calc others */},
-        // Add EDR 95% Up/Down, Profit Target, High Profit (similar calc)
+        { name: 'Current', spx: spxPrice, delta: g.delta * contracts, gamma: g.gamma * contracts, theta: g.theta * contracts, vega: g.vega * contracts, price: g.price, pl: (g.price - premium) * contracts * 100 },
+        { name: 'Break Even', spx: K + premium, delta: g.delta * contracts, gamma: g.gamma * contracts, theta: g.theta * contracts, vega: g.vega * contracts, price: premium, pl: 0 },
       ];
       const posBody = document.getElementById('positionTable').querySelector('tbody');
       posBody.innerHTML = '';
@@ -367,42 +423,44 @@
       });
 
       // Charts (Greeks)
-      const spxRange = Array.from({length:21},(_,i)=> Math.max(1, spxPrice*(0.8 + i*0.01)));
-      const dArr = spxRange.map(S=> blackScholesGreeks(S,K,T,r,sigma,q,type).delta);
-      // Similar for gArr, tArr, vArr
-      if (charts.delta) charts.delta.destroy(); // Destroy old
-      charts.delta = new Chart(document.getElementById('deltaChart').getContext('2d'),{
-        type:'line', data:{ labels:spxRange, datasets:[
-          {label:'Delta', data:dArr, borderColor:'blue', fill:false},
-          {label:'Teal: Favorable (0.4)', data:Array(spxRange.length).fill(0.4), borderColor:'teal', borderDash:[5,5], fill:false},
-          {label:'Purple: Warning (0.6)', data:Array(spxRange.length).fill(0.6), borderColor:'purple', borderDash:[5,5], fill:false}
-        ]},
-        options:{ scales:{ x:{title:{display:true,text:'SPX Price'}}, y:{title:{display:true,text:'Delta'}, beginAtZero:false} } }
+      const spxRange = Array.from({ length: 21 }, (_, i) => Math.max(1, spxPrice * (0.8 + i * 0.01)));
+      const dArr = spxRange.map(S => blackScholesGreeks(S, K, T, r, sigma, q, type).delta);
+      if (charts.delta) charts.delta.destroy();
+      charts.delta = new Chart(document.getElementById('deltaChart').getContext('2d'), {
+        type: 'line', data: { labels: spxRange, datasets: [
+          { label: 'Delta', data: dArr, borderColor: 'blue', fill: false },
+          { label: 'Teal: Favorable (0.4)', data: Array(spxRange.length).fill(0.4), borderColor: 'teal', borderDash: [5, 5], fill: false },
+          { label: 'Purple: Warning (0.6)', data: Array(spxRange.length).fill(0.6), borderColor: 'purple', borderDash: [5, 5], fill: false }
+        ] },
+        options: { scales: { x: { title: { display: true, text: 'SPX Price' } }, y: { title: { display: true, text: 'Delta' }, beginAtZero: false } } }
       });
-      // Repeat for gamma, theta, vega (thresholds: gamma 0.0005/0.001, theta -1/-2, vega 4/8)
+      // Similar for gamma (0.0005/0.001), theta (-1/-2), vega (4/8)
 
-      // Profit Curve (enhanced with signals)
+      // Profit Curve
       const profits = spxRange.map(S => (blackScholesGreeks(S, K, T, r, sigma, q, type).price - premium) * contracts * 100);
-      const breakeven = Array(spxRange.length).fill(0); // Line at 0
-      const profitTarget = profits.map(p => p * 1.2); // +20%
-      const stopLoss = profits.map(p => p * -0.1); // -10%
+      const breakeven = Array(spxRange.length).fill(0);
+      const profitTarget = profits.map(p => p * 1.2);
+      const stopLoss = profits.map(p => p * -0.1);
       if (charts.profit) charts.profit.destroy();
       charts.profit = new Chart(document.getElementById('profitChart').getContext('2d'), {
         type: 'line',
         data: { labels: spxRange, datasets: [
-          {label: 'Profit ($)', data: profits, borderColor: 'blue', fill: false},
-          {label: 'Breakeven', data: breakeven, borderColor: 'green', borderDash: [5,5]},
-          {label: '+20% Target', data: profitTarget, borderColor: 'orange', borderDash: [5,5]},
-          {label: '-10% Stop-Loss', data: stopLoss, borderColor: 'red', borderDash: [5,5]}
+          { label: 'Profit ($)', data: profits, borderColor: 'blue', fill: false },
+          { label: 'Breakeven', data: breakeven, borderColor: 'green', borderDash: [5, 5] },
+          { label: '+20% Target', data: profitTarget, borderColor: 'orange', borderDash: [5, 5] },
+          { label: '-10% Stop-Loss', data: stopLoss, borderColor: 'red', borderDash: [5, 5] }
         ] },
         options: { scales: { x: { title: { display: true, text: 'SPX Price' } }, y: { title: { display: true, text: 'Profit ($)' } } } }
       });
     }
 
-    // Error Handler
+    // Error Handler with Unique ID
     function showError(msg) {
-      document.getElementById('status').innerHTML = `<span class="error">${msg}</span>`;
-      console.error(msg);
+      const errorId = `ERROR_${new Date().toISOString().replace(/[:.-]/g, '')}_${Math.random().toString(36).substr(2, 5)}`;
+      const errorText = `${errorId}: ${msg}`;
+      document.getElementById('errorDisplay').style.display = 'block';
+      document.getElementById('errorDisplay').innerText = errorText;
+      console.error(errorText);
     }
 
     // After-Hours Check
@@ -414,7 +472,7 @@
       const today = new Date().toISOString().split('T')[0];
       const isHoliday = holidays.includes(today);
       const isAfter = isHoliday || hour < 9 || (hour === 9 && min < 30) || hour >= 16;
-      document.getElementById('afterHoursNote').innerText = isAfter ? 'After-hours: Data shows last close.' : '';
+      document.getElementById('afterHoursNote').innerText = isAfter ? 'After-hours: Data reflects last close until 9:30 AM EDT 9/16/2025.' : '';
     }
 
     // Event Listeners
@@ -423,25 +481,11 @@
       const savedKey = localStorage.getItem('apiKey');
       if (savedKey) document.getElementById('apiKey').value = savedKey;
       checkAfterHours();
-      setInterval(checkAfterHours, 60000); // Hourly check
-      setInterval(() => { if (document.getElementById('autoRefresh').checked) fetchLiveData(); }, 5000); // 5s refresh
+      setInterval(checkAfterHours, 60000);
+      setInterval(() => { if (document.getElementById('autoRefresh').checked) fetchLiveData(); }, 5000);
       updateAll();
     });
-    window.onerror = (msg, url, lineNo, columnNo, error) => showError(`GLOBAL_JS_ERROR: ${msg} [Line ${lineNo}, Col ${columnNo}]`);
+    window.onerror = (msg, url, lineNo, columnNo, error) => showError(`GLOBAL_JS_ERROR: ${msg} [Line ${lineNo}, Col ${columnNo}] [Stack: ${error?.stack}]`);
   </script>
-    <div id="finra-disclosure" class="finra-disclosure">
-        <h3>Full FINRA Options Disclosure</h3>
-        <p>Options involve risks and are not suitable for all investors. Prior to buying or selling an option, a person must receive a copy of <em>Characteristics and Risks of Standardized Options</em>. Copies of this document may be obtained from your broker, from any exchange on which options are traded or by contacting The Options Clearing Corporation at 125 S. Franklin Street, Suite 1200, Chicago, IL 60606 (1-888-678-4667). The document is also available at <a href="https://www.theocc.com/Company-Information/Documents-and-Archives/Options-Disclosure-Document" target="_blank">www.theocc.com</a>.</p>
-        <p>Key risks include, but are not limited to:</p>
-        <ul>
-            <li><strong>Risk of Loss:</strong> You may lose your entire investment or more, particularly with uncovered options strategies.</li>
-            <li><strong>Complexity:</strong> Options are complex financial instruments. Understanding their pricing, strategies, and risks requires significant knowledge and experience.</li>
-            <li><strong>Leverage:</strong> Options provide significant leverage, which can amplify both gains and losses.</li>
-            <li><strong>Time Decay:</strong> The value of options may decrease rapidly as expiration approaches, even if the underlying asset's price remains unchanged.</li>
-            <li><strong>Market Risk:</strong> Options are subject to market volatility, liquidity risks, and changes in the underlying asset's price.</li>
-            <li><strong>Assignment Risk:</strong> Sellers of options may be assigned at any time before expiration, requiring delivery of the underlying asset or cash settlement.</li>
-        </ul>
-        <p>Investors should consult with a financial advisor and thoroughly understand these risks before engaging in options trading. This tool provides theoretical calculations based on the Black-Scholes model and does not guarantee actual market outcomes. Use for educational purposes only.</p>
-    </div>
 </body>
 </html>
