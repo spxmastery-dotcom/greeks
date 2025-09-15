@@ -3,12 +3,12 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>SPX Mastery Long-Term Options Analyzer — Build 1 V27</title>
+<title>SPX Mastery Long-Term Options Analyzer — Build 1 V27.1</title>
 <style>
   :root{
-    --bg:#ffffff; --ink:#111; --muted:#586069; --line:#dfe2e5; --panel:#fff;
-    --chip:#f6f8fa; --accent:#0066ff; --good:#0a8a3a; --warn:#cc7a00; --bad:#c62828;
-    --thead:#f2f4f7; --hover:#f7fbff; --table:#fff; --hl:#e6f2ff; --purple:#6f42c1;
+    --bg:#fff; --ink:#111; --muted:#586069; --line:#dfe2e5; --panel:#fff;
+    --chip:#f6f8fa; --accent:#0059ff; --good:#0a8a3a; --warn:#cc7a00; --bad:#c62828;
+    --thead:#f2f4f7; --hover:#f7fbff; --hl:#e6f2ff;
   }
   *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.45 system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial}
   h1{font-size:20px;margin:16px 0} h2{font-size:16px;margin:18px 0 10px}
@@ -22,14 +22,13 @@
   input[readonly]{background:#fafbfc}
   button{cursor:pointer}
   .btn{background:#f6f8fa} .btn:hover{background:#eef2f7}
-  .accent{color:var(--accent)} .muted{color:var(--muted)}
   .chips{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:6px}
   .chip{background:var(--chip);border:1px solid var(--line);padding:6px 10px;border-radius:999px;font-weight:700;font-size:12px}
   .chip.good{border-color:var(--good);color:var(--good)}
   .chip.bad{border-color:var(--bad);color:var(--bad)}
   .chip.warn{border-color:var(--warn);color:var(--warn)}
   .kbd{font-family:ui-monospace,Consolas,Menlo,monospace;background:#f6f8fa;padding:2px 6px;border-radius:6px;border:1px solid var(--line)}
-  table{width:100%;border-collapse:collapse;background:var(--table)}
+  table{width:100%;border-collapse:collapse;background:#fff}
   th,td{padding:8px 10px;border-bottom:1px solid var(--line);text-align:right}
   th{background:var(--thead);position:sticky;top:0;z-index:2}
   td:first-child,th:first-child{text-align:left}
@@ -49,7 +48,7 @@
 </head>
 <body>
 <div class="wrap">
-  <h1>SPX Mastery Long-Term Options Analyzer <span class="muted">(Build 1, Version 27)</span></h1>
+  <h1>SPX Mastery Long-Term Options Analyzer <span class="muted">(Build 1, Version 27.1)</span></h1>
 
   <div class="chips" id="statusChips">
     <div class="chip" id="chipData">Data: <span class="muted">—</span></div>
@@ -58,7 +57,7 @@
     <div class="chip" id="chipAH">Hours: <span class="muted">—</span></div>
   </div>
 
-  <!-- TradingView US500 mini chart beside quick inputs -->
+  <!-- Controls + TradingView -->
   <div class="card minihead">
     <div style="flex:1 1 520px;min-width:320px">
       <div class="row">
@@ -79,15 +78,15 @@
           </select>
         </div>
       </div>
-      <small class="muted">Polygon tier: Indices/Options. Use for live SPX/VIX/chain. After-hours shows last/theoretical.</small>
+      <small class="muted">Polygon tier: Indices/Options. After-hours shows last/theoretical.</small>
     </div>
 
-    <!-- TradingView Widget -->
+    <!-- TradingView: exact symbol = US500 -->
     <div style="flex:0 0 360px;">
       <div id="tv-mini"></div>
       <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-mini-symbol-overview.js" async>
       {
-        "symbol": "FOREXCOM:US500",
+        "symbol": "US500",
         "width": 360,
         "height": 160,
         "locale": "en",
@@ -141,7 +140,7 @@
       <div style="margin-top:14px">
         <h2>Intraday Value Curve (Today’s valuation vs. SPX)</h2>
         <canvas id="payoff"></canvas>
-        <small class="muted">This curve uses current DTE/IV (today’s value), not just expiration payoff. Vertical line marks break-even.</small>
+        <small class="muted">Uses current DTE & IV (today’s price), not just expiration payoff.</small>
       </div>
     </div>
 
@@ -179,114 +178,122 @@
   </div>
 
   <div class="card" style="margin-top:16px">
-    <h2>Errors (copy/paste to Sylvia)</h2>
+    <h2>Errors (copy/paste)</h2>
     <div id="errBox" class="errbox">No errors yet.</div>
   </div>
 
   <div class="muted" style="margin-top:10px">
-    Notes: IV source = nearest ATM from chain. “After Hours” shows when quotes may be stale; mids may be theoretical. Regime chip uses VIX front future vs. spot ratio. Not financial advice.
+    Notes: IV source = nearest ATM from chain. “After Hours” allows theoretical mids; rows stay even if quotes are missing. Regime chip uses VIX front future vs spot ratio. Not financial advice.
   </div>
 </div>
 
 <script>
-/* ---------- helpers ---------- */
+/* ========= helpers ========= */
 const $ = s=>document.querySelector(s); const $$=s=>Array.from(document.querySelectorAll(s));
 const fmt = n => (Number.isFinite(n)? Number(n).toFixed(2) : 'NaN');
 function setChip(id, text, cls="chip"){ const el=$(id); el.className=cls; el.innerHTML=text; }
-function reportError(context, url, status, bodyText, err){
-  const msg = [
-    `Context: ${context}`,
-    `URL: ${url || '—'}`,
-    `HTTP: ${status || '—'}`,
-    `Body: ${bodyText || '—'}`,
-    `Error: ${err? (err.message||err.toString()): '—'}`,
-    `Time: ${new Date().toISOString()}`
-  ].join("\n");
-  $("#errBox").textContent = msg;
-  setChip("#chipData", `Data: <span class='muted'>Error (${status||'n/a'})</span>`, "chip bad");
-  console.error(msg);
-}
+function showErrorOnce(msg){ const box=$("#errBox"); if(!box.dataset.lock) { box.textContent=msg; box.dataset.lock="1"; } }
 
-/* ---------- state ---------- */
+/* ========= state ========= */
 const state = { manualSelection:false, chain:[], lastATMIV:null, lastSPX:null, autoTimer:null, muted:false, snoozeUntil:0 };
 
-/* ---------- audio ---------- */
+/* ========= audio ========= */
 let audioCtx=null;
+$("#btnSound").onclick = ()=>tink();
+$("#btnMute").onclick = ()=>{ state.muted=!state.muted; $("#btnMute").textContent=state.muted?"🔈 Unmute":"🔇 Mute"; };
+$("#btnSnooze").onclick = ()=>{ state.snoozeUntil=Date.now()+10*60*1000; };
 function tink(){
   if(state.muted || Date.now()<state.snoozeUntil) return;
   try{
     audioCtx = audioCtx || new (window.AudioContext||window.webkitAudioContext)();
     const o=audioCtx.createOscillator(), g=audioCtx.createGain();
-    o.type='sine'; o.frequency.value=880; g.gain.setValueAtTime(0,audioCtx.currentTime);
+    o.type='sine'; o.frequency.value=880;
+    g.gain.setValueAtTime(0,audioCtx.currentTime);
     g.gain.linearRampToValueAtTime(0.25,audioCtx.currentTime+0.01);
     g.gain.exponentialRampToValueAtTime(0.0001,audioCtx.currentTime+0.25);
     o.connect(g).connect(audioCtx.destination); o.start(); o.stop(audioCtx.currentTime+0.26);
   }catch(_){}
 }
-$("#btnSound").onclick=tink; $("#btnMute").onclick=()=>{state.muted=!state.muted; $("#btnMute").textContent=state.muted?"🔈 Unmute":"🔇 Mute";};
-$("#btnSnooze").onclick=()=>{state.snoozeUntil=Date.now()+10*60*1000;};
 
-/* ---------- polygon ---------- */
+/* ========= polygon ========= */
 function polyKey(){ const k=$("#polyKey").value.trim(); if(!k) throw new Error("Missing Polygon API key"); return k; }
 async function polyGet(path, params={}){
   const base=`https://api.polygon.io${path}`;
-  const url = new URL(base);
-  params.apiKey = polyKey();
-  Object.entries(params).forEach(([k,v])=>url.searchParams.set(k,v));
-  let res, text;
+  const url = new URL(base); params.apiKey=polyKey();
+  Object.entries(params).forEach(([k,v])=> url.searchParams.set(k,v));
+  let res=null, body=""; 
   try{
     res = await fetch(url.toString(), {cache:"no-store"});
-    text = await res.text(); // capture raw
+    body = await res.text();
     if(res.status===429){ setChip("#chipRate","RateLimit: <span>Backoff</span>","chip warn"); }
     else setChip("#chipRate","RateLimit: <span class='muted'>OK</span>","chip");
     if(!res.ok){
-      reportError("polyGet fetch", url.toString(), res.status, text);
+      const msg = [
+        `Context: polyGet`,
+        `URL: ${url.toString()}`,
+        `HTTP: ${res.status}`,
+        `Body: ${body || '—'}`,
+        `Time: ${new Date().toISOString()}`
+      ].join("\n");
+      showErrorOnce(msg);
       throw new Error(`HTTP ${res.status}`);
     }
-    try{ return JSON.parse(text); } catch(parseErr){
-      reportError("polyGet JSON.parse", url.toString(), res.status, text, parseErr);
-      throw parseErr;
-    }
+    return JSON.parse(body||"{}");
   }catch(e){
-    if(!res) reportError("polyGet network", path, null, null, e);
+    if(!res){
+      const msg = [
+        `Context: network`,
+        `URL: ${base}`,
+        `Error: ${e.message||e}`,
+        `Time: ${new Date().toISOString()}`
+      ].join("\n");
+      showErrorOnce(msg);
+    }
+    setChip("#chipData","Data: <span class='muted'>Error</span>","chip bad");
     throw e;
   }
 }
 
-/* minute bars, fallback to prev */
+/* ========= data: SPX/VIX/VX ========= */
 async function fetchSPX(){
   const end = new Date(); const start = new Date(end.getTime()-60*60*1000);
-  const url1 = `/v2/aggs/ticker/I:SPX/range/1/minute/${start.toISOString()}/${end.toISOString()}`;
   try{
-    const j = await polyGet(url1, {adjusted:true, sort:"asc", limit:500});
-    const arr = j?.results || [];
-    if(arr.length){
-      $("#chipAH").className="chip"; $("#chipAH").innerHTML="Hours: <span>Intraday</span>";
-      return arr[arr.length-1].c;
-    }
-  }catch(e){ /* continue to prev */ }
-  const url2 = `/v2/aggs/ticker/I:SPX/prev`;
-  try{
-    const j2 = await polyGet(url2, {adjusted:true});
-    $("#chipAH").className="chip warn"; $("#chipAH").innerHTML="Hours: <span>After Hours</span>";
-    return j2?.results?.[0]?.c ?? NaN;
-  }catch(e){ throw e; }
+    const j = await polyGet(`/v2/aggs/ticker/I:SPX/range/1/minute/${start.toISOString()}/${end.toISOString()}`, {adjusted:true, sort:"asc", limit:500});
+    const arr=j?.results||[]; if(arr.length){ $("#chipAH").className="chip"; $("#chipAH").innerHTML="Hours: <span>Intraday</span>"; return arr[arr.length-1].c; }
+  }catch(_){}  // fall through
+  const j2 = await polyGet(`/v2/aggs/ticker/I:SPX/prev`, {adjusted:true});
+  $("#chipAH").className="chip warn"; $("#chipAH").innerHTML="Hours: <span>After Hours</span>";
+  return j2?.results?.[0]?.c ?? NaN;
 }
-
 async function fetchVixPrev(){ const j=await polyGet(`/v2/aggs/ticker/I:VIX/prev`, {adjusted:true}); return j?.results?.[0]?.c ?? NaN; }
 async function fetchVxFrontPrev(){ const j=await polyGet(`/v2/aggs/ticker/X:VXU5/prev`, {adjusted:true}); return j?.results?.[0]?.c ?? NaN; }
 
+/* ========= data: options chain ========= */
+/* V26 worked with /v3/snapshot/options/SPX. Some plans reject extra params → 400.
+   Strategy: try with (limit, order, sort). If 400, retry with NO params. If still 400, last-resort try I:SPX. */
 async function fetchChainSnapshot(){
-  // V26-working endpoint — do NOT use I:SPX (400)
-  const j = await polyGet(`/v3/snapshot/options/SPX`, {limit:1000, include:"greeks"});
-  return j?.results || [];
+  const base = `/v3/snapshot/options/SPX`;
+  try{
+    const j = await polyGet(base, {limit:1000, order:"asc", sort:"strike_price"});
+    return j?.results || [];
+  }catch(e1){
+    try{
+      const j = await polyGet(base, {}); // naked call
+      return j?.results || [];
+    }catch(e2){
+      try{
+        const j = await polyGet(`/v3/snapshot/options/I:SPX`, {limit:1000});
+        return j?.results || [];
+      }catch(e3){
+        throw e3; // polyGet already logged a detailed error
+      }
+    }
+  }
 }
 
-/* ---------- Black–Scholes ---------- */
+/* ========= BS ========= */
 function normPdf(x){ return Math.exp(-0.5*x*x)/Math.sqrt(2*Math.PI); }
-function normCdf(x){ const k=1/(1+0.2316419*Math.abs(x));
-  const a1=0.31938153,a2=-0.356563782,a3=1.781477937,a4=-1.821255978,a5=1.330274429;
-  const poly=((((a5*k+a4)*k+a3)*k+a2)*k+a1)*k; const c=1-normPdf(x)*poly; return x>=0?c:1-c; }
+function normCdf(x){ const k=1/(1+0.2316419*Math.abs(x)); const a1=0.31938153,a2=-0.356563782,a3=1.781477937,a4=-1.821255978,a5=1.330274429; const p=((((a5*k+a4)*k+a3)*k+a2)*k+a1)*k; const c=1-normPdf(x)*p; return x>=0?c:1-c; }
 function bsGreeks(S,K,r,q,iv,tYrs,type){
   if(!Number.isFinite(S)||!Number.isFinite(K)||!Number.isFinite(iv)||tYrs<=0) return {price:NaN,delta:NaN,gamma:NaN,theta:NaN,vega:NaN};
   const v=iv/100, d1=(Math.log(S/K)+(r/100 - q/100 + 0.5*v*v)*tYrs)/(v*Math.sqrt(tYrs)), d2=d1-v*Math.sqrt(tYrs);
@@ -307,25 +314,21 @@ function bsGreeks(S,K,r,q,iv,tYrs,type){
   }
 }
 
-/* ---------- UI/Calc ---------- */
+/* ========= UI calcs ========= */
 function expDTE(){ const d=new Date($("#inpExp").value); const t=new Date(); return Math.max(1, Math.round((d-t)/86400000)); }
 function intradayValueCurve(){
   const S0=Number($("#inpSpx").value), K=Number($("#inpK").value), iv=Number($("#inpIV").value);
   const r=Number($("#inpR").value), q=Number($("#inpQ").value), type=$("#selType").value, prem=Number($("#inpPrem").value);
   const DTE=expDTE()/365;
-
   const c=$("#payoff"), ctx=c.getContext("2d"); ctx.clearRect(0,0,c.width,c.height);
   const xMin=Math.max(50, S0*0.85), xMax=S0*1.15, W=c.width, H=c.height;
-  ctx.strokeStyle="#e1e4e8"; ctx.lineWidth=1;
-  ctx.beginPath(); ctx.moveTo(40,H-30); ctx.lineTo(W-10,H-30); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(40,10); ctx.lineTo(40,H-30); ctx.stroke();
-
+  ctx.strokeStyle="#e1e4e8"; ctx.lineWidth=1; ctx.beginPath(); ctx.moveTo(40,H-30); ctx.lineTo(W-10,H-30); ctx.stroke(); ctx.beginPath(); ctx.moveTo(40,10); ctx.lineTo(40,H-30); ctx.stroke();
   ctx.strokeStyle="#0a8a3a"; ctx.lineWidth=2; ctx.beginPath();
   const n=120; let yMin=Infinity,yMax=-Infinity; const pts=[];
   for(let i=0;i<=n;i++){
     const S=xMin+(xMax-xMin)*i/n;
     const g=bsGreeks(S,K,r,q,iv,DTE,type);
-    const pnl=(g.price-prem)*100; // per 1 contract P/L in $
+    const pnl=(g.price-prem)*100;
     pts.push({S,pnl}); yMin=Math.min(yMin,pnl); yMax=Math.max(yMax,pnl);
   }
   yMin-=Math.abs(yMax-yMin)*0.1; yMax+=Math.abs(yMax-yMin)*0.1;
@@ -333,86 +336,54 @@ function intradayValueCurve(){
     const x=40+(W-50)*((pts[i].S-xMin)/(xMax-xMin));
     const y=(H-40)-(H-60)*((pts[i].pnl - yMin)/(yMax-yMin));
     if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
-  }
-  ctx.stroke();
-
-  const be=(type==='call')? (K+prem) : (K-prem);
+  } ctx.stroke();
+  const be=(type==='call')? (K+prem):(K-prem);
   const beX=40+(W-50)*((be-xMin)/(xMax-xMin));
-  ctx.strokeStyle="#6f42c1"; ctx.setLineDash([5,4]);
-  ctx.beginPath(); ctx.moveTo(beX,10); ctx.lineTo(beX,H-30); ctx.stroke(); ctx.setLineDash([]);
+  ctx.strokeStyle="#6f42c1"; ctx.setLineDash([5,4]); ctx.beginPath(); ctx.moveTo(beX,10); ctx.lineTo(beX,H-30); ctx.stroke(); ctx.setLineDash([]);
 }
 
 function fillDTE(){
   const tds=[90,60,30,18], body=$("#tblDTE tbody"); body.innerHTML="";
   const S=Number($("#inpSpx").value), K=Number($("#inpK").value), r=Number($("#inpR").value), q=Number($("#inpQ").value), iv=Number($("#inpIV").value), type=$("#selType").value;
-  for(const d of tds){
-    const g=bsGreeks(S,K,r,q,iv,d/365,type);
-    const tr=document.createElement("tr");
-    tr.innerHTML=`<td>${d}</td><td>${fmt(g.theta)}</td><td>${fmt(g.vega)}</td><td></td>`;
-    body.appendChild(tr);
+  for(const d of tds){ const g=bsGreeks(S,K,r,q,iv,d/365,type);
+    const tr=document.createElement("tr"); tr.innerHTML=`<td>${d}</td><td>${fmt(g.theta)}</td><td>${fmt(g.vega)}</td><td></td>`; body.appendChild(tr);
   }
 }
-
 function updatePosition(){
   const S=Number($("#inpSpx").value), K=Number($("#inpK").value), iv=Number($("#inpIV").value);
   const r=Number($("#inpR").value), q=Number($("#inpQ").value), qty=Number($("#inpQty").value);
   const type=$("#selType").value, DTE=expDTE(), prem=Number($("#inpPrem").value);
   const tbl=$("#tblPos tbody"); tbl.innerHTML="";
-  function row(lbl, Sreq){
-    const g=bsGreeks(Sreq,K,r,q,iv,DTE/365,type);
-    const pnl=(g.price-prem)*qty*100;
-    const tr=document.createElement("tr");
-    tr.innerHTML=`<td>${lbl}</td><td>${fmt(Sreq)}</td><td>${fmt(g.delta)}</td><td>${fmt(g.gamma)}</td><td>${fmt(g.theta)}</td><td>${fmt(g.vega)}</td><td>${fmt(g.price)}</td><td>${fmt(pnl)}</td>`;
-    tbl.appendChild(tr);
+  function row(lbl,Sreq){ const g=bsGreeks(Sreq,K,r,q,iv,DTE/365,type); const pnl=(g.price-prem)*qty*100;
+    const tr=document.createElement("tr"); tr.innerHTML=`<td>${lbl}</td><td>${fmt(Sreq)}</td><td>${fmt(g.delta)}</td><td>${fmt(g.gamma)}</td><td>${fmt(g.theta)}</td><td>${fmt(g.vega)}</td><td>${fmt(g.price)}</td><td>${fmt(pnl)}</td>`; tbl.appendChild(tr);
   }
-  row("Current", S);
-  const be=(type==='call')? (K+prem):(K-prem); row("Break Even", be);
-  row("Profit Target (+2%)", S*1.02); row("High Profit (+3%)", S*1.03);
+  row("Current", S); const be=(type==='call')? (K+prem):(K-prem); row("Break Even", be); row("Profit Target (+2%)", S*1.02); row("High Profit (+3%)", S*1.03);
   intradayValueCurve();
 }
 
-/* ---------- Chain ---------- */
+/* ========= chain render ========= */
 let deltaFilter="all";
 function deltaInBand(d){ if(!Number.isFinite(d)) return deltaFilter==="all"; if(deltaFilter==="all") return true; const [a,b]=deltaFilter.split("-").map(Number); const ad=Math.abs(d); return ad>=a && ad<=b; }
-function calcATMIV(items, S, type){
-  let best=null, minDiff=1e12;
-  for(const it of items){
-    const isPut = (it?.details?.contract_type==="put");
-    if((type==="put")!==isPut) continue;
-    const K=it?.details?.strike_price; if(!Number.isFinite(K)) continue;
-    const diff=Math.abs(K-S);
-    const iv = Number.isFinite(it?.implied_volatility)? it.implied_volatility*100 : NaN;
-    if(diff<minDiff && Number.isFinite(iv)){ minDiff=diff; best=iv; }
-  }
-  return best ?? null;
-}
+function calcATMIV(items,S,type){ let best=null,min=1e12; for(const it of items){ const isPut=(it?.details?.contract_type==="put"); if((type==="put")!==isPut) continue; const K=it?.details?.strike_price; if(!Number.isFinite(K)) continue; const iv=Number.isFinite(it?.implied_volatility)? it.implied_volatility*100 : NaN; const d=Math.abs(K-S); if(d<min && Number.isFinite(iv)){min=d; best=iv;} } return best??null; }
 function makeMid(b,a){ return (Number.isFinite(b)&&Number.isFinite(a))? (b+a)/2 : NaN; }
-function chainRangeFilter(S, type, K){
-  if(type==='call'){ const lo=S-50, hi=S+1000; return K>=lo && K<=hi; }
-  else{ const lo=S-1000, hi=S+50; return K>=lo && K<=hi; }
-}
+function chainRangeFilter(S,type,K){ if(type==='call'){const lo=S-50,hi=S+1000;return K>=lo&&K<=hi;} else {const lo=S-1000,hi=S+50;return K>=lo&&K<=hi;} }
 function renderChain(items){
   const tbody=$("#tblChain tbody"); tbody.innerHTML="";
-  const S=Number($("#inpSpx").value); const type=$("#selType").value;
-  const atmIV=calcATMIV(items, S, type);
-  if(atmIV){ $("#inpIV").value=atmIV.toFixed(2); state.lastATMIV=atmIV; }
-
+  const S=Number($("#inpSpx").value), type=$("#selType").value;
+  const atmIV=calcATMIV(items,S,type); if(atmIV){ $("#inpIV").value=atmIV.toFixed(2); state.lastATMIV=atmIV; }
   items.sort((a,b)=> (a?.details?.strike_price ?? 0) - (b?.details?.strike_price ?? 0));
-  let bestIdx=-1, bestDiff=1e9;
-
+  let bestIdx=-1,bestDiff=1e9;
   for(const it of items){
     const isPut=(it?.details?.contract_type==="put"); if((type==="put")!==isPut) continue;
-    const K=Number(it?.details?.strike_price); if(!Number.isFinite(K) || !chainRangeFilter(S,type,K)) continue;
-
-    const d = it?.greeks?.delta; if(!deltaInBand(Math.abs(d))) continue;
-    const bid = Number(it?.last_quote?.bid ?? it?.day?.bid_price);
-    const ask = Number(it?.last_quote?.ask ?? it?.day?.ask_price);
-    const mid = makeMid(bid,ask);
-    const iv = Number.isFinite(it?.implied_volatility)? it.implied_volatility*100 : NaN;
-    const sk = (Number.isFinite(iv) && Number.isFinite(atmIV))? (iv - atmIV) : NaN;
-
+    const K=Number(it?.details?.strike_price); if(!Number.isFinite(K)||!chainRangeFilter(S,type,K)) continue;
+    const d=it?.greeks?.delta; if(!deltaInBand(Math.abs(d))) continue;
+    const bid=Number(it?.last_quote?.bid ?? it?.day?.bid_price);
+    const ask=Number(it?.last_quote?.ask ?? it?.day?.ask_price);
+    const mid=makeMid(bid,ask);
+    const iv=Number.isFinite(it?.implied_volatility)? it.implied_volatility*100 : NaN;
+    const sk=(Number.isFinite(iv)&&Number.isFinite(atmIV))? (iv-atmIV) : NaN;
     const tr=document.createElement("tr");
-    tr.innerHTML = `
+    tr.innerHTML=`
       <td>${fmt(K)}</td>
       <td>${Number.isFinite(bid)? fmt(bid):"<span class='na'>NaN</span>"}</td>
       <td>${Number.isFinite(ask)? fmt(ask):"<span class='na'>NaN</span>"}</td>
@@ -423,75 +394,50 @@ function renderChain(items){
       <td>${Number.isFinite(it?.greeks?.gamma)? fmt(it.greeks.gamma):"<span class='na'>NaN</span>"}</td>
       <td>${Number.isFinite(it?.greeks?.theta)? fmt(it.greeks.theta):"<span class='na'>NaN</span>"}</td>
       <td>${Number.isFinite(it?.greeks?.vega)? fmt(it.greeks.vega):"<span class='na'>NaN</span>"}</td>
-      <td>${it?.details?.expiration_date ?? ""}</td>
-    `;
-    tr.onclick=()=>{
-      $("#inpK").value = Number.isFinite(K)? K.toFixed(0): $("#inpK").value;
-      if(Number.isFinite(mid)) $("#inpPrem").value = mid.toFixed(2);
-      if(Number.isFinite(iv)) $("#inpIV").value = iv.toFixed(2);
-      state.manualSelection=true; setTimeout(()=>state.manualSelection=false, 20000);
-      updatePosition();
-    };
+      <td>${it?.details?.expiration_date ?? ""}</td>`;
+    tr.onclick=()=>{ if(Number.isFinite(K)) $("#inpK").value=K.toFixed(0); if(Number.isFinite(mid)) $("#inpPrem").value=mid.toFixed(2); if(Number.isFinite(iv)) $("#inpIV").value=iv.toFixed(2); state.manualSelection=true; setTimeout(()=>state.manualSelection=false,20000); updatePosition(); };
     tbody.appendChild(tr);
-
-    if(Number.isFinite(d)){ const diff=Math.abs(Math.abs(d)-0.5); if(diff<bestDiff){ bestDiff=diff; bestIdx=tbody.rows.length-1; } }
+    if(Number.isFinite(d)){ const diff=Math.abs(Math.abs(d)-0.5); if(diff<bestDiff){bestDiff=diff; bestIdx=tbody.rows.length-1;} }
   }
-
-  if(bestIdx>=0 && !state.manualSelection){
-    const tr=tbody.rows[bestIdx]; tr.style.background=varGet("--hl","#e6f2ff");
-  }
+  if(bestIdx>=0 && !state.manualSelection){ tbody.rows[bestIdx].style.background=varGet("--hl","#e6f2ff"); }
 }
-function varGet(name, fallback){ return getComputedStyle(document.documentElement).getPropertyValue(name)||fallback; }
+function varGet(name,fallback){ return getComputedStyle(document.documentElement).getPropertyValue(name)||fallback; }
 
-/* ---------- live fetchers ---------- */
+/* ========= live refresh ========= */
 async function refreshLive(){
   try{
     setChip("#chipData","Data: <span class='muted'>Fetching…</span>");
-    const [spx,vix,vxf] = await Promise.all([fetchSPX(), fetchVixPrev(), fetchVxFrontPrev()]);
+    const [spx,vix,vxf]=await Promise.all([fetchSPX(),fetchVixPrev(),fetchVxFrontPrev()]);
     if(Number.isFinite(spx)){ $("#inpSpx").value=spx.toFixed(2); state.lastSPX=spx; }
-    if(Number.isFinite(vix) && Number.isFinite(vxf)){
-      const ratio=vxf/vix; let tone="chip", text="Regime: <span>Flat</span>";
-      if(ratio>1.05){ tone="chip good"; text="Regime: <span>Contango</span>"; }
-      else if(ratio<0.97){ tone="chip bad"; text="Regime: <span>Backwardation</span>"; }
-      setChip("#chipRegime", text, tone);
-    }
+    if(Number.isFinite(vix)&&Number.isFinite(vxf)){ const r=vxf/vix; let tone="chip",txt="Regime: <span>Flat</span>"; if(r>1.05){tone="chip good";txt="Regime: <span>Contango</span>";} else if(r<0.97){tone="chip bad";txt="Regime: <span>Backwardation</span>";} setChip("#chipRegime",txt,tone); }
     setChip("#chipData",`Data: <span>${new Date().toLocaleTimeString()}</span>`);
-  }catch(e){ /* error already reported in polyGet */ }
+  }catch(_){/* detailed error already printed */ }
 }
 async function refreshChain(){
-  const path = `/v3/snapshot/options/SPX`;
+  $("#errBox").dataset.lock=""; // allow fresh error if any
   try{
     $("#btnFetchChain").disabled=true;
     const items=await fetchChainSnapshot();
     state.chain=items; renderChain(items);
     setChip("#chipData",`Data: <span>${new Date().toLocaleTimeString()}</span>`);
-  }catch(e){
-    // polyGet already logged; ensure a visible context line too
-    reportError("refreshChain", path, null, null, e);
   }finally{ $("#btnFetchChain").disabled=false; }
 }
 
-/* ---------- events ---------- */
+/* ========= events ========= */
 $("#btnFetchLive").onclick = async()=>{ await refreshLive(); fillDTE(); updatePosition(); };
 $("#btnFetchChain").onclick = async()=>{ await refreshChain(); fillDTE(); updatePosition(); };
 $("#btnUpdate").onclick = ()=>{ state.manualSelection=true; setTimeout(()=>state.manualSelection=false,20000); fillDTE(); updatePosition(); };
 $("#selType").onchange = ()=>{ state.manualSelection=true; setTimeout(()=>state.manualSelection=false,20000); refreshChain(); updatePosition(); };
 $$("[data-df]").forEach(b=> b.onclick=(e)=>{ deltaFilter=e.target.dataset.df; refreshChain(); });
 
-function startAuto(){
-  stopAuto(); if(!$("#chkAuto").checked) return;
-  const ms=Number($("#selInterval").value);
-  state.autoTimer=setInterval(async()=>{
-    await refreshLive(); fillDTE(); updatePosition();
-    // refresh chain every other tick to reduce load
-    if(Date.now()% (ms*2) < ms) await refreshChain();
-  }, ms);
+function startAuto(){ stopAuto(); if(!$("#chkAuto").checked) return; const ms=Number($("#selInterval").value);
+  state.autoTimer=setInterval(async()=>{ await refreshLive(); fillDTE(); updatePosition(); if(Date.now()% (ms*2) < ms) await refreshChain(); }, ms);
 }
 function stopAuto(){ if(state.autoTimer){ clearInterval(state.autoTimer); state.autoTimer=null; } }
 $("#chkAuto").onchange=startAuto; $("#selInterval").onchange=startAuto;
 
-/* ---------- init ---------- */
-fillDTE(); updatePosition(); // waits for first live pull
+/* ========= init ========= */
+fillDTE(); updatePosition();
 </script>
     <div id="finra-disclosure" class="finra-disclosure">
         <h3>Full FINRA Options Disclosure</h3>
