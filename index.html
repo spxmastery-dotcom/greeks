@@ -1,51 +1,50 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1" />
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
 <title>SPX Mastery Long-Term Options Analyzer — Build 1 V27</title>
 <style>
-  :root {
-    --bg:#0b1020; --panel:#121831; --ink:#e8eefb; --muted:#9fb0d5;
-    --accent:#6be6ff; --good:#31c48d; --warn:#f6ad55; --bad:#f05252;
-    --chip:#1b2547; --line:#2a345e; --table:#0f1428; --purple:#9d7cff;
+  :root{
+    --bg:#ffffff; --ink:#111; --muted:#586069; --line:#dfe2e5; --panel:#fff;
+    --chip:#f6f8fa; --accent:#0066ff; --good:#0a8a3a; --warn:#cc7a00; --bad:#c62828;
+    --thead:#f2f4f7; --hover:#f7fbff; --table:#fff; --hl:#e6f2ff; --purple:#6f42c1;
   }
   *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.45 system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial}
-  h1{font-size:20px;margin:14px 0} h2{font-size:16px;margin:20px 0 10px}
+  h1{font-size:20px;margin:16px 0} h2{font-size:16px;margin:18px 0 10px}
   .wrap{max-width:1220px;margin:0 auto;padding:18px}
-  .grid{display:grid;grid-template-columns:1.2fr 1fr;gap:16px}
-  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px;box-shadow:0 6px 18px #0004}
+  .grid{display:grid;grid-template-columns:1.25fr 1fr;gap:16px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px}
   .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
-  label{font-weight:600}
-  input,select,button{background:#0f1530;border:1px solid var(--line);color:var(--ink);padding:8px 10px;border-radius:10px;outline:none}
+  label{font-weight:700}
+  input,select,button{background:#fff;border:1px solid var(--line);color:var(--ink);padding:8px 10px;border-radius:10px;outline:none}
   input[type="number"]{width:110px}
-  input[readonly]{opacity:.85}
+  input[readonly]{background:#fafbfc}
   button{cursor:pointer}
-  .btn{background:#1d264b} .btn:hover{filter:brightness(1.1)}
+  .btn{background:#f6f8fa} .btn:hover{background:#eef2f7}
   .accent{color:var(--accent)} .muted{color:var(--muted)}
-  .chips{display:flex;gap:8px;flex-wrap:wrap}
-  .chip{background:var(--chip);border:1px solid var(--line);padding:6px 10px;border-radius:999px;font-weight:600;font-size:12px}
+  .chips{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:6px}
+  .chip{background:var(--chip);border:1px solid var(--line);padding:6px 10px;border-radius:999px;font-weight:700;font-size:12px}
   .chip.good{border-color:var(--good);color:var(--good)}
   .chip.bad{border-color:var(--bad);color:var(--bad)}
   .chip.warn{border-color:var(--warn);color:var(--warn)}
-  .kbd{font-family:ui-monospace,Consolas,Menlo,monospace;background:#0b0f24;padding:2px 6px;border-radius:6px;border:1px solid var(--line)}
-  table{width:100%;border-collapse:collapse} th,td{padding:8px 10px;border-bottom:1px solid var(--line);text-align:right}
-  th{background:#0d1330;position:sticky;top:0;z-index:2}
+  .kbd{font-family:ui-monospace,Consolas,Menlo,monospace;background:#f6f8fa;padding:2px 6px;border-radius:6px;border:1px solid var(--line)}
+  table{width:100%;border-collapse:collapse;background:var(--table)}
+  th,td{padding:8px 10px;border-bottom:1px solid var(--line);text-align:right}
+  th{background:var(--thead);position:sticky;top:0;z-index:2}
   td:first-child,th:first-child{text-align:left}
-  tr:hover{background:#101737}
-  .na{color:#6a78a8}
-  .ivHigh{color:var(--good)} .ivFlat{color:var(--muted)} .ivLow{color:var(--bad)}
-  .skewHigh{background:#0c1f18} .skewFlat{background:#14192f}
-  .deltaBand{background:#0f1e3d}
+  tr:hover{background:var(--hover)}
+  .na{color:#9aa4b2}
+  .skewHigh{background:#e9f7ef} .skewFlat{background:#f8f9fb}
   .toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:8px}
   .switch{display:inline-flex;align-items:center;gap:8px}
   .switch input{accent-color:var(--accent)}
-  canvas{width:100%;height:260px;background:#0b0f24;border:1px solid var(--line);border-radius:10px}
+  canvas{width:100%;height:260px;background:#fff;border:1px solid var(--line);border-radius:10px}
   small{color:var(--muted)}
-  .section{margin-top:10px}
-  .greek b{font-weight:800;color:#fff}
-  .notice{padding:8px 10px;border:1px dashed var(--line);border-radius:10px}
+  .notice{padding:8px 10px;border:1px dashed var(--line);border-radius:10px;background:#fcfcff}
   .right{margin-left:auto}
+  .errbox{white-space:pre-wrap;background:#fff3f3;border:1px solid #ffd6d6;color:#5f2120;border-radius:8px;padding:10px;font-family:ui-monospace,Consolas,Menlo,monospace}
+  .minihead{display:flex;gap:10px;align-items:center}
 </style>
 </head>
 <body>
@@ -59,105 +58,105 @@
     <div class="chip" id="chipAH">Hours: <span class="muted">—</span></div>
   </div>
 
-  <div class="grid">
-    <div class="card">
-      <h2>Input Parameters <span class="muted">(Click Update to Recalculate)</span></h2>
+  <!-- TradingView US500 mini chart beside quick inputs -->
+  <div class="card minihead">
+    <div style="flex:1 1 520px;min-width:320px">
       <div class="row">
         <label>Polygon API Key</label>
-        <input id="polyKey" type="password" placeholder="•••••••••••••••••••••••" />
+        <input id="polyKey" type="password" placeholder="•••••••••••••••••"/>
         <span class="muted">Provider: Polygon</span>
       </div>
-
       <div class="row toolbar">
         <button class="btn" id="btnFetchLive">Fetch Live Data</button>
         <button class="btn" id="btnFetchChain">Fetch Options Chain</button>
-        <span class="muted">Polygon tier: Indices/Options. Use for live SPX/VIX/chain. After-hours shows last/theoretical.</span>
-      </div>
-
-      <div class="row section">
-        <label>SPX Price</label>
-        <input id="inpSpx" type="number" step="0.01" placeholder="—" />
-        <label>Strike (K)</label>
-        <input id="inpK" type="number" step="1" value="7000" />
-        <label>Expiration</label>
-        <input id="inpExp" type="date" value="2025-11-28" />
-      </div>
-
-      <div class="row section">
-        <label>IV (%)</label>
-        <input id="inpIV" type="number" step="0.01" value="10" />
-        <label>Premium</label>
-        <input id="inpPrem" type="number" step="0.01" value="10" />
-        <label>Contracts</label>
-        <input id="inpQty" type="number" step="1" value="10" />
-      </div>
-
-      <div class="row section">
-        <label>Risk-Free r (%)</label>
-        <input id="inpR" type="number" step="0.01" value="3.80" />
-        <label>Dividend q (%)</label>
-        <input id="inpQ" type="number" step="0.01" value="1.30" />
-        <label>Option Type</label>
-        <select id="selType">
-          <option value="call" selected>Call</option>
-          <option value="put">Put</option>
-        </select>
-        <button class="btn" id="btnUpdate">Update</button>
-        <span class="right switch">
+        <div class="right switch">
           <label for="chkAuto">Auto-Refresh</label>
-          <input id="chkAuto" type="checkbox" />
+          <input id="chkAuto" type="checkbox"/>
           <select id="selInterval">
             <option value="3000">3s</option>
             <option value="5000" selected>5s</option>
             <option value="10000">10s</option>
           </select>
-        </span>
+        </div>
+      </div>
+      <small class="muted">Polygon tier: Indices/Options. Use for live SPX/VIX/chain. After-hours shows last/theoretical.</small>
+    </div>
+
+    <!-- TradingView Widget -->
+    <div style="flex:0 0 360px;">
+      <div id="tv-mini"></div>
+      <script type="text/javascript" src="https://s3.tradingview.com/external-embedding/embed-widget-mini-symbol-overview.js" async>
+      {
+        "symbol": "FOREXCOM:US500",
+        "width": 360,
+        "height": 160,
+        "locale": "en",
+        "dateRange": "1D",
+        "colorTheme": "light",
+        "isTransparent": false,
+        "autosize": false,
+        "largeChartUrl": ""
+      }
+      </script>
+    </div>
+  </div>
+
+  <div class="grid">
+    <div class="card">
+      <h2>Input Parameters <span class="muted">(Click Update to Recalculate)</span></h2>
+      <div class="row">
+        <label>SPX Price</label><input id="inpSpx" type="number" step="0.01" placeholder="—"/>
+        <label>Strike (K)</label><input id="inpK" type="number" step="1" value="7000"/>
+        <label>Expiration</label><input id="inpExp" type="date" value="2025-11-28"/>
       </div>
 
-      <div class="row section">
+      <div class="row">
+        <label>IV (%)</label><input id="inpIV" type="number" step="0.01" value="10"/>
+        <label>Premium</label><input id="inpPrem" type="number" step="0.01" value="10"/>
+        <label>Contracts</label><input id="inpQty" type="number" step="1" value="10"/>
+      </div>
+
+      <div class="row">
+        <label>Risk-Free r (%)</label><input id="inpR" type="number" step="0.01" value="3.80"/>
+        <label>Dividend q (%)</label><input id="inpQ" type="number" step="0.01" value="1.30"/>
+        <label>Option Type</label>
+        <select id="selType"><option value="call" selected>Call</option><option value="put">Put</option></select>
+        <button class="btn" id="btnUpdate">Update</button>
+      </div>
+
+      <div class="row" style="margin-top:8px">
         <span class="muted">ETF Proxy</span> <span class="kbd">Flat (Fallback: 1): Neutral Market</span>
       </div>
 
-      <div class="section notice">
+      <div class="notice" style="margin-top:10px">
         <b>Delta-Target Filters:</b>
         <button class="btn" data-df="all">All</button>
         <button class="btn" data-df="0.10-0.25">0.10–0.25</button>
         <button class="btn" data-df="0.25-0.40">0.25–0.40</button>
         <button class="btn" data-df="0.40-0.60">0.40–0.60</button>
         <button class="btn" data-df="0.60-0.80">0.60–0.80</button>
-        <small class="muted">Auto-select hovers ~0.50Δ; manual selections are never overwritten.</small>
+        <small class="muted">Auto-select ~0.50Δ; manual row picks won’t be overwritten for 20s.</small>
       </div>
 
-      <div class="section">
-        <h2>Profit Curve (Payoff @ Expiration)</h2>
+      <div style="margin-top:14px">
+        <h2>Intraday Value Curve (Today’s valuation vs. SPX)</h2>
         <canvas id="payoff"></canvas>
-        <small class="muted">Shows payoff vs. SPX for the currently selected contract &amp; premium. Vertical lines mark break-even and profit targets.</small>
+        <small class="muted">This curve uses current DTE/IV (today’s value), not just expiration payoff. Vertical line marks break-even.</small>
       </div>
-
     </div>
 
     <div class="card">
       <h2>DTE Forecast <span class="muted">(Theta Burn, Vega Sensitivity)</span></h2>
-      <table id="tblDTE">
-        <thead><tr><th>DTE</th><th>Theta (proj)</th><th>Vega (proj)</th><th>Notes</th></tr></thead>
-        <tbody></tbody>
-      </table>
+      <table id="tblDTE"><thead><tr><th>DTE</th><th>Theta (proj)</th><th>Vega (proj)</th><th>Notes</th></tr></thead><tbody></tbody></table>
 
-      <h2 class="section">Options Chain <span class="muted">(Select Row—fills Strike/Premium/IV)</span></h2>
-      <div class="row muted" style="margin-bottom:6px">
-        <small>Calls: $50 ITM → ~ $1000 OTM | Puts: mirror range. ATM IV colors Skew. NaN allowed off-hours.</small>
-      </div>
-      <div style="max-height:420px;overflow:auto;border:1px solid var(--line);border-radius:10px;background:#0b1020">
+      <h2 style="margin-top:16px">Options Chain <span class="muted">(Select Row—fills Strike/Premium/IV)</span></h2>
+      <small class="muted">Calls: $50 ITM → ~ $1000 OTM | Puts: mirror range. ATM IV colors Skew. NaN allowed off-hours.</small>
+      <div style="max-height:420px;overflow:auto;border:1px solid var(--line);border-radius:10px;margin-top:6px">
         <table id="tblChain">
-          <thead>
-            <tr>
-              <th>Strike</th>
-              <th>Bid</th><th>Ask</th><th>Mid</th>
-              <th>IV (%)</th><th>Skew</th>
-              <th>Delta</th><th>Gamma</th><th>Theta</th><th>Vega</th>
-              <th>Exp</th>
-            </tr>
-          </thead>
+          <thead><tr>
+            <th>Strike</th><th>Bid</th><th>Ask</th><th>Mid</th><th>IV (%)</th><th>Skew</th>
+            <th>Delta</th><th>Gamma</th><th>Theta</th><th>Vega</th><th>Exp</th>
+          </tr></thead>
           <tbody></tbody>
         </table>
       </div>
@@ -166,429 +165,334 @@
         <button class="btn" id="btnSound">🔔 Tink</button>
         <button class="btn" id="btnMute">🔇 Mute</button>
         <button class="btn" id="btnSnooze">😴 Snooze 10m</button>
-        <small class="muted">Alerts on skew spikes / P&L thresholds.</small>
+        <small class="muted">Alerts on skew spikes / P&amp;L thresholds.</small>
       </div>
     </div>
   </div>
 
   <div class="card" style="margin-top:16px">
-    <h2>Position Analysis</h2>
+    <h2>Position Analysis (based on today’s market)</h2>
     <table id="tblPos">
-      <thead><tr><th>Scenario</th><th>SPX Needed</th><th class="greek"><b>Delta</b></th><th class="greek"><b>Gamma</b></th><th class="greek"><b>Theta</b></th><th class="greek"><b>Vega</b></th><th>Price</th><th>P/L ($)</th></tr></thead>
+      <thead><tr><th>Scenario</th><th>SPX Needed</th><th><b>Delta</b></th><th><b>Gamma</b></th><th><b>Theta</b></th><th><b>Vega</b></th><th>Price</th><th>P/L ($)</th></tr></thead>
       <tbody></tbody>
     </table>
   </div>
 
-  <div class="muted" style="margin-top:12px">
-    Notes: IV source = nearest ATM from chain. “After Hours” badge shows when quotes may be stale; mids can be theoretical. Regime chip uses VIX future/spot ratio. Not financial advice.
+  <div class="card" style="margin-top:16px">
+    <h2>Errors (copy/paste to Sylvia)</h2>
+    <div id="errBox" class="errbox">No errors yet.</div>
+  </div>
+
+  <div class="muted" style="margin-top:10px">
+    Notes: IV source = nearest ATM from chain. “After Hours” shows when quotes may be stale; mids may be theoretical. Regime chip uses VIX front future vs. spot ratio. Not financial advice.
   </div>
 </div>
 
 <script>
-/* ----------------------- Utilities ----------------------- */
-const $ = sel => document.querySelector(sel);
-const $$ = sel => Array.from(document.querySelectorAll(sel));
+/* ---------- helpers ---------- */
+const $ = s=>document.querySelector(s); const $$=s=>Array.from(document.querySelectorAll(s));
 const fmt = n => (Number.isFinite(n)? Number(n).toFixed(2) : 'NaN');
-const nowIso = () => new Date().toISOString();
-const min = Math.min, max=Math.max;
+function setChip(id, text, cls="chip"){ const el=$(id); el.className=cls; el.innerHTML=text; }
+function reportError(context, url, status, bodyText, err){
+  const msg = [
+    `Context: ${context}`,
+    `URL: ${url || '—'}`,
+    `HTTP: ${status || '—'}`,
+    `Body: ${bodyText || '—'}`,
+    `Error: ${err? (err.message||err.toString()): '—'}`,
+    `Time: ${new Date().toISOString()}`
+  ].join("\n");
+  $("#errBox").textContent = msg;
+  setChip("#chipData", `Data: <span class='muted'>Error (${status||'n/a'})</span>`, "chip bad");
+  console.error(msg);
+}
 
-function daysBetween(a,b){ const MS=86400000; return Math.max(0, Math.round((b-a)/MS)); }
-function addDays(d, n){ const x = new Date(d); x.setDate(x.getDate()+n); return x; }
+/* ---------- state ---------- */
+const state = { manualSelection:false, chain:[], lastATMIV:null, lastSPX:null, autoTimer:null, muted:false, snoozeUntil:0 };
 
-/* -------------------- Global State ----------------------- */
-const state = {
-  manualSelection:false,
-  lastATMIV:null,
-  lastSPX:null,
-  lastType:'call',
-  chain:[],
-  autoTimer:null,
-  muted:false,
-  snoozeUntil:0,
-  ratelimited:false
-};
-
-/* ------------------- Audio (tink) ------------------------ */
-let audioCtx = null;
+/* ---------- audio ---------- */
+let audioCtx=null;
 function tink(){
-  if(state.muted || Date.now() < state.snoozeUntil) return;
+  if(state.muted || Date.now()<state.snoozeUntil) return;
   try{
-    if(!audioCtx) audioCtx = new (window.AudioContext||window.webkitAudioContext)();
-    const osc = audioCtx.createOscillator();
-    const env = audioCtx.createGain();
-    osc.type='sine'; osc.frequency.value=880;
-    env.gain.setValueAtTime(0, audioCtx.currentTime);
-    env.gain.linearRampToValueAtTime(0.25, audioCtx.currentTime+0.01);
-    env.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime+0.25);
-    osc.connect(env).connect(audioCtx.destination);
-    osc.start(); osc.stop(audioCtx.currentTime+0.26);
-  }catch(e){}
+    audioCtx = audioCtx || new (window.AudioContext||window.webkitAudioContext)();
+    const o=audioCtx.createOscillator(), g=audioCtx.createGain();
+    o.type='sine'; o.frequency.value=880; g.gain.setValueAtTime(0,audioCtx.currentTime);
+    g.gain.linearRampToValueAtTime(0.25,audioCtx.currentTime+0.01);
+    g.gain.exponentialRampToValueAtTime(0.0001,audioCtx.currentTime+0.25);
+    o.connect(g).connect(audioCtx.destination); o.start(); o.stop(audioCtx.currentTime+0.26);
+  }catch(_){}
 }
-$("#btnSound").onclick = tink;
-$("#btnMute").onclick = ()=>{ state.muted = !state.muted; $("#btnMute").textContent = state.muted? "🔈 Unmute":"🔇 Mute"; };
-$("#btnSnooze").onclick = ()=>{ state.snoozeUntil = Date.now()+10*60*1000; };
+$("#btnSound").onclick=tink; $("#btnMute").onclick=()=>{state.muted=!state.muted; $("#btnMute").textContent=state.muted?"🔈 Unmute":"🔇 Mute";};
+$("#btnSnooze").onclick=()=>{state.snoozeUntil=Date.now()+10*60*1000;};
 
-/* -------------- Polygon helpers (V26-compatible) --------- */
-function polyBase(){ const k=$("#polyKey").value.trim(); if(!k) throw new Error("Missing Polygon API key"); return k; }
-
+/* ---------- polygon ---------- */
+function polyKey(){ const k=$("#polyKey").value.trim(); if(!k) throw new Error("Missing Polygon API key"); return k; }
 async function polyGet(path, params={}){
-  const k = polyBase();
-  const url = new URL(`https://api.polygon.io${path}`);
-  params.apiKey = k;
-  Object.entries(params).forEach(([k,v])=> url.searchParams.set(k,v));
-  const r = await fetch(url, {cache:"no-store"});
-  if(r.status===429){ state.ratelimited=true; $("#chipRate").className="chip warn"; $("#chipRate").innerHTML="RateLimit: <span>Backoff</span>"; }
-  if(!r.ok) throw new Error(`HTTP ${r.status}`);
-  state.ratelimited=false; $("#chipRate").className="chip"; $("#chipRate").innerHTML="RateLimit: <span class='muted'>OK</span>";
-  return r.json();
+  const base=`https://api.polygon.io${path}`;
+  const url = new URL(base);
+  params.apiKey = polyKey();
+  Object.entries(params).forEach(([k,v])=>url.searchParams.set(k,v));
+  let res, text;
+  try{
+    res = await fetch(url.toString(), {cache:"no-store"});
+    text = await res.text(); // capture raw
+    if(res.status===429){ setChip("#chipRate","RateLimit: <span>Backoff</span>","chip warn"); }
+    else setChip("#chipRate","RateLimit: <span class='muted'>OK</span>","chip");
+    if(!res.ok){
+      reportError("polyGet fetch", url.toString(), res.status, text);
+      throw new Error(`HTTP ${res.status}`);
+    }
+    try{ return JSON.parse(text); } catch(parseErr){
+      reportError("polyGet JSON.parse", url.toString(), res.status, text, parseErr);
+      throw parseErr;
+    }
+  }catch(e){
+    if(!res) reportError("polyGet network", path, null, null, e);
+    throw e;
+  }
 }
 
-// Latest SPX (15m delayed tier ok): try last minute bar, else prev close
+/* minute bars, fallback to prev */
 async function fetchSPX(){
-  const end = new Date();
-  const start = new Date(end.getTime()-60*60*1000);
+  const end = new Date(); const start = new Date(end.getTime()-60*60*1000);
+  const url1 = `/v2/aggs/ticker/I:SPX/range/1/minute/${start.toISOString()}/${end.toISOString()}`;
   try{
-    const j = await polyGet(`/v2/aggs/ticker/I:SPX/range/1/minute/${start.toISOString()}/${end.toISOString()}`, {adjusted:true, limit:500, sort:"asc"});
+    const j = await polyGet(url1, {adjusted:true, sort:"asc", limit:500});
     const arr = j?.results || [];
     if(arr.length){
-      const last = arr[arr.length-1];
-      const c = last.c;
-      state.lastSPX = c;
       $("#chipAH").className="chip"; $("#chipAH").innerHTML="Hours: <span>Intraday</span>";
-      return c;
+      return arr[arr.length-1].c;
     }
-  }catch(e){ /* fall through */ }
-  // fallback to prev
-  const j2 = await polyGet(`/v2/aggs/ticker/I:SPX/prev`, {adjusted:true});
-  const c = (j2?.results?.[0]?.c) ?? null;
-  state.lastSPX = c;
-  $("#chipAH").className="chip warn"; $("#chipAH").innerHTML="Hours: <span>After Hours</span>";
-  return c;
+  }catch(e){ /* continue to prev */ }
+  const url2 = `/v2/aggs/ticker/I:SPX/prev`;
+  try{
+    const j2 = await polyGet(url2, {adjusted:true});
+    $("#chipAH").className="chip warn"; $("#chipAH").innerHTML="Hours: <span>After Hours</span>";
+    return j2?.results?.[0]?.c ?? NaN;
+  }catch(e){ throw e; }
 }
 
-async function fetchVixPrev(){ const j=await polyGet(`/v2/aggs/ticker/I:VIX/prev`, {adjusted:true}); return j?.results?.[0]?.c ?? null; }
-async function fetchVxFrontPrev(){ const j=await polyGet(`/v2/aggs/ticker/X:VXU5/prev`, {adjusted:true}); return j?.results?.[0]?.c ?? null; }
+async function fetchVixPrev(){ const j=await polyGet(`/v2/aggs/ticker/I:VIX/prev`, {adjusted:true}); return j?.results?.[0]?.c ?? NaN; }
+async function fetchVxFrontPrev(){ const j=await polyGet(`/v2/aggs/ticker/X:VXU5/prev`, {adjusted:true}); return j?.results?.[0]?.c ?? NaN; }
 
-// Snapshot chain for SPX (client-side filter for strikes/type)
 async function fetchChainSnapshot(){
-  // Snapshot endpoint that worked in V26 (do not use I:SPX)
+  // V26-working endpoint — do NOT use I:SPX (400)
   const j = await polyGet(`/v3/snapshot/options/SPX`, {limit:1000, include:"greeks"});
   return j?.results || [];
 }
 
-/* ----------------- Black–Scholes (BS) -------------------- */
+/* ---------- Black–Scholes ---------- */
 function normPdf(x){ return Math.exp(-0.5*x*x)/Math.sqrt(2*Math.PI); }
-function normCdf(x){ // Abramowitz-Stegun approximation
-  const k = 1/(1+0.2316419*Math.abs(x));
+function normCdf(x){ const k=1/(1+0.2316419*Math.abs(x));
   const a1=0.31938153,a2=-0.356563782,a3=1.781477937,a4=-1.821255978,a5=1.330274429;
-  const poly = ((((a5*k+a4)*k+a3)*k+a2)*k+a1)*k;
-  const c = 1 - normPdf(x)*poly;
-  return x>=0? c : 1-c;
-}
-function bsGreeks(S,K,r,q,iv, tYrs, type){
-  if(!Number.isFinite(S)||!Number.isFinite(K)||!Number.isFinite(iv)||tYrs<=0) return {delta:NaN,gamma:NaN,theta:NaN,vega:NaN,price:NaN};
+  const poly=((((a5*k+a4)*k+a3)*k+a2)*k+a1)*k; const c=1-normPdf(x)*poly; return x>=0?c:1-c; }
+function bsGreeks(S,K,r,q,iv,tYrs,type){
+  if(!Number.isFinite(S)||!Number.isFinite(K)||!Number.isFinite(iv)||tYrs<=0) return {price:NaN,delta:NaN,gamma:NaN,theta:NaN,vega:NaN};
   const v=iv/100, d1=(Math.log(S/K)+(r/100 - q/100 + 0.5*v*v)*tYrs)/(v*Math.sqrt(tYrs)), d2=d1-v*Math.sqrt(tYrs);
   if(type==='call'){
-    const price = S*Math.exp(-q/100*tYrs)*normCdf(d1) - K*Math.exp(-r/100*tYrs)*normCdf(d2);
-    const delta = Math.exp(-q/100*tYrs)*normCdf(d1);
-    const gamma = Math.exp(-q/100*tYrs)*normPdf(d1)/(S*v*Math.sqrt(tYrs));
-    const vega = S*Math.exp(-q/100*tYrs)*normPdf(d1)*Math.sqrt(tYrs);
-    const theta = -(S*Math.exp(-q/100*tYrs)*normPdf(d1)*v/(2*Math.sqrt(tYrs))) - r/100*K*Math.exp(-r/100*tYrs)*normCdf(d2) + q/100*S*Math.exp(-q/100*tYrs)*normCdf(d1);
+    const price=S*Math.exp(-q/100*tYrs)*normCdf(d1)-K*Math.exp(-r/100*tYrs)*normCdf(d2);
+    const delta=Math.exp(-q/100*tYrs)*normCdf(d1);
+    const gamma=Math.exp(-q/100*tYrs)*normPdf(d1)/(S*v*Math.sqrt(tYrs));
+    const vega=S*Math.exp(-q/100*tYrs)*normPdf(d1)*Math.sqrt(tYrs);
+    const theta=-(S*Math.exp(-q/100*tYrs)*normPdf(d1)*v/(2*Math.sqrt(tYrs)))-r/100*K*Math.exp(-r/100*tYrs)*normCdf(d2)+q/100*S*Math.exp(-q/100*tYrs)*normCdf(d1);
     return {price,delta,gamma,theta,vega};
   }else{
-    const price = K*Math.exp(-r/100*tYrs)*normCdf(-d2) - S*Math.exp(-q/100*tYrs)*normCdf(-d1);
-    const delta = -Math.exp(-q/100*tYrs)*normCdf(-d1);
-    const gamma = Math.exp(-q/100*tYrs)*normPdf(d1)/(S*v*Math.sqrt(tYrs));
-    const vega = S*Math.exp(-q/100*tYrs)*normPdf(d1)*Math.sqrt(tYrs);
-    const theta = -(S*Math.exp(-q/100*tYrs)*normPdf(d1)*v/(2*Math.sqrt(tYrs))) + r/100*K*Math.exp(-r/100*tYrs)*normCdf(-d2) - q/100*S*Math.exp(-q/100*tYrs)*normCdf(-d1);
+    const price=K*Math.exp(-r/100*tYrs)*normCdf(-d2)-S*Math.exp(-q/100*tYrs)*normCdf(-d1);
+    const delta=-Math.exp(-q/100*tYrs)*normCdf(-d1);
+    const gamma=Math.exp(-q/100*tYrs)*normPdf(d1)/(S*v*Math.sqrt(tYrs));
+    const vega=S*Math.exp(-q/100*tYrs)*normPdf(d1)*Math.sqrt(tYrs);
+    const theta=-(S*Math.exp(-q/100*tYrs)*normPdf(d1)*v/(2*Math.sqrt(tYrs)))+r/100*K*Math.exp(-r/100*tYrs)*normCdf(-d2)-q/100*S*Math.exp(-q/100*tYrs)*normCdf(-d1);
     return {price,delta,gamma,theta,vega};
   }
 }
 
-/* --------------- Drawing: simple payoff chart ------------ */
-let payoffCtx, payoffCanvas = $("#payoff");
-function drawPayoff(){
-  const S0 = Number($("#inpSpx").value);
-  const K  = Number($("#inpK").value);
-  const iv = Number($("#inpIV").value);
-  const r  = Number($("#inpR").value);
-  const q  = Number($("#inpQ").value);
-  const type = $("#selType").value;
-  const prem = Number($("#inpPrem").value);
+/* ---------- UI/Calc ---------- */
+function expDTE(){ const d=new Date($("#inpExp").value); const t=new Date(); return Math.max(1, Math.round((d-t)/86400000)); }
+function intradayValueCurve(){
+  const S0=Number($("#inpSpx").value), K=Number($("#inpK").value), iv=Number($("#inpIV").value);
+  const r=Number($("#inpR").value), q=Number($("#inpQ").value), type=$("#selType").value, prem=Number($("#inpPrem").value);
+  const DTE=expDTE()/365;
 
-  if(!S0 || !K) return;
-
-  const ctx = payoffCtx || (payoffCtx = payoffCanvas.getContext("2d"));
-  ctx.clearRect(0,0,payoffCanvas.width,payoffCanvas.height);
-
-  // build x range +/-15%
-  const xMin = Math.max(50, S0*0.85), xMax = S0*1.15;
-  const W = payoffCanvas.width, H = payoffCanvas.height;
-
-  // axes
-  ctx.strokeStyle="#2a345e"; ctx.lineWidth=1;
+  const c=$("#payoff"), ctx=c.getContext("2d"); ctx.clearRect(0,0,c.width,c.height);
+  const xMin=Math.max(50, S0*0.85), xMax=S0*1.15, W=c.width, H=c.height;
+  ctx.strokeStyle="#e1e4e8"; ctx.lineWidth=1;
   ctx.beginPath(); ctx.moveTo(40,H-30); ctx.lineTo(W-10,H-30); ctx.stroke();
   ctx.beginPath(); ctx.moveTo(40,10); ctx.lineTo(40,H-30); ctx.stroke();
 
-  // payoff at expiration
-  ctx.strokeStyle="#6be6ff"; ctx.lineWidth=2; ctx.beginPath();
-  const n=120; for(let i=0;i<=n;i++){
-    const S = xMin + (xMax-xMin)*i/n;
-    let payoff = 0;
-    if(type==='call') payoff = Math.max(0,S-K)-prem;
-    else payoff = Math.max(0,K-S)-prem;
-    const x = 40 + (W-50)*(i/n);
-    const y = (H-40) - (H-60)*( (payoff + (S0*0.1)) / (S0*0.2) ); // autoscale
+  ctx.strokeStyle="#0a8a3a"; ctx.lineWidth=2; ctx.beginPath();
+  const n=120; let yMin=Infinity,yMax=-Infinity; const pts=[];
+  for(let i=0;i<=n;i++){
+    const S=xMin+(xMax-xMin)*i/n;
+    const g=bsGreeks(S,K,r,q,iv,DTE,type);
+    const pnl=(g.price-prem)*100; // per 1 contract P/L in $
+    pts.push({S,pnl}); yMin=Math.min(yMin,pnl); yMax=Math.max(yMax,pnl);
+  }
+  yMin-=Math.abs(yMax-yMin)*0.1; yMax+=Math.abs(yMax-yMin)*0.1;
+  for(let i=0;i<pts.length;i++){
+    const x=40+(W-50)*((pts[i].S-xMin)/(xMax-xMin));
+    const y=(H-40)-(H-60)*((pts[i].pnl - yMin)/(yMax-yMin));
     if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
   }
   ctx.stroke();
 
-  // markers: breakeven
-  const be = (type==='call')? (K+prem) : (K-prem);
-  const beX = 40 + (W-50)*((be-xMin)/(xMax-xMin));
-  ctx.strokeStyle="#9d7cff"; ctx.setLineDash([5,4]);
+  const be=(type==='call')? (K+prem) : (K-prem);
+  const beX=40+(W-50)*((be-xMin)/(xMax-xMin));
+  ctx.strokeStyle="#6f42c1"; ctx.setLineDash([5,4]);
   ctx.beginPath(); ctx.moveTo(beX,10); ctx.lineTo(beX,H-30); ctx.stroke(); ctx.setLineDash([]);
-
-  // labels
-  ctx.fillStyle="#9fb0d5"; ctx.fillText("SPX", W-40, H-36); ctx.fillText("P/L", 8, 16);
-}
-
-/* ----------------- UI + Calculations --------------------- */
-function setChip(id, text, cls="chip"){ const el=$(id); el.className=cls; el.innerHTML=text; }
-
-async function refreshLive(){
-  try{
-    setChip("#chipData","Data: <span class='muted'>Fetching…</span>");
-    const [spx,vix,vxf] = await Promise.all([fetchSPX(), fetchVixPrev(), fetchVxFrontPrev()]);
-    if(Number.isFinite(spx)){
-      $("#inpSpx").value = spx.toFixed(2);
-      if(!state.manualSelection) state.lastSPX = spx;
-    }
-    // regime chip (contango/backwardation)
-    if(Number.isFinite(vix) && Number.isFinite(vxf)){
-      const ratio = vxf / vix;
-      let tone = "chip", txt="Regime: <span>Flat</span>";
-      if(ratio>1.05){ tone="chip good"; txt="Regime: <span>Contango</span>"; }
-      else if(ratio<0.97){ tone="chip bad"; txt="Regime: <span>Backwardation</span>"; }
-      setChip("#chipRegime", txt, tone);
-    }
-    setChip("#chipData",`Data: <span>${new Date().toLocaleTimeString()}</span>`);
-  }catch(e){
-    setChip("#chipData","Data: <span class='muted'>Error</span>","chip bad");
-  }
-}
-
-function expDTE(){
-  const d = new Date($("#inpExp").value);
-  const today = new Date();
-  return Math.max(1, Math.round((d - today)/86400000));
 }
 
 function fillDTE(){
-  const tds = [90,60,30,18].sort((a,b)=>b-a);
-  const body=$("#tblDTE tbody"); body.innerHTML="";
-  const S=Number($("#inpSpx").value), K=Number($("#inpK").value);
-  const r=Number($("#inpR").value), q=Number($("#inpQ").value), iv=Number($("#inpIV").value);
-  const type=$("#selType").value;
+  const tds=[90,60,30,18], body=$("#tblDTE tbody"); body.innerHTML="";
+  const S=Number($("#inpSpx").value), K=Number($("#inpK").value), r=Number($("#inpR").value), q=Number($("#inpQ").value), iv=Number($("#inpIV").value), type=$("#selType").value;
   for(const d of tds){
-    const g = bsGreeks(S,K,r,q,iv, d/365, type);
-    const tr = document.createElement("tr");
-    tr.innerHTML = `<td>${d}</td><td>${fmt(g.theta)}</td><td>${fmt(g.vega)}</td><td></td>`;
+    const g=bsGreeks(S,K,r,q,iv,d/365,type);
+    const tr=document.createElement("tr");
+    tr.innerHTML=`<td>${d}</td><td>${fmt(g.theta)}</td><td>${fmt(g.vega)}</td><td></td>`;
     body.appendChild(tr);
   }
 }
-
-function setManualOverride(){ state.manualSelection=true; setTimeout(()=>state.manualSelection=false, 20000); }
 
 function updatePosition(){
   const S=Number($("#inpSpx").value), K=Number($("#inpK").value), iv=Number($("#inpIV").value);
   const r=Number($("#inpR").value), q=Number($("#inpQ").value), qty=Number($("#inpQty").value);
   const type=$("#selType").value, DTE=expDTE(), prem=Number($("#inpPrem").value);
-  const g = bsGreeks(S,K,r,q,iv, DTE/365, type);
   const tbl=$("#tblPos tbody"); tbl.innerHTML="";
-
-  function row(label, Sreq, price){
-    const G = bsGreeks(Sreq,K,r,q,iv, DTE/365, type);
-    const pnl = (G.price - prem) * qty * 100;
+  function row(lbl, Sreq){
+    const g=bsGreeks(Sreq,K,r,q,iv,DTE/365,type);
+    const pnl=(g.price-prem)*qty*100;
     const tr=document.createElement("tr");
-    tr.innerHTML = `<td>${label}</td><td>${fmt(Sreq)}</td>
-      <td>${fmt(G.delta)}</td><td>${fmt(G.gamma)}</td><td>${fmt(G.theta)}</td><td>${fmt(G.vega)}</td>
-      <td>${fmt(G.price)}</td><td>${fmt(pnl)}</td>`;
+    tr.innerHTML=`<td>${lbl}</td><td>${fmt(Sreq)}</td><td>${fmt(g.delta)}</td><td>${fmt(g.gamma)}</td><td>${fmt(g.theta)}</td><td>${fmt(g.vega)}</td><td>${fmt(g.price)}</td><td>${fmt(pnl)}</td>`;
     tbl.appendChild(tr);
   }
-
-  row("Current", S, g.price);
-  const be = (type==='call')? (K+prem) : (K-prem);
-  row("Break Even", be, g.price);
-  row("Profit Target (+2%)", S*1.02, g.price);
-  row("High Profit (+3%)", S*1.03, g.price);
-
-  drawPayoff();
+  row("Current", S);
+  const be=(type==='call')? (K+prem):(K-prem); row("Break Even", be);
+  row("Profit Target (+2%)", S*1.02); row("High Profit (+3%)", S*1.03);
+  intradayValueCurve();
 }
 
-/* ---------------- Chain table + filters ------------------ */
-let deltaFilter = "all";
-
-function deltaInBand(d){
-  if(!Number.isFinite(d)) return deltaFilter==="all";
-  if(deltaFilter==="all") return true;
-  const [a,b]=deltaFilter.split("-").map(Number);
-  const ad=Math.abs(d);
-  return ad>=a && ad<=b;
-}
-
+/* ---------- Chain ---------- */
+let deltaFilter="all";
+function deltaInBand(d){ if(!Number.isFinite(d)) return deltaFilter==="all"; if(deltaFilter==="all") return true; const [a,b]=deltaFilter.split("-").map(Number); const ad=Math.abs(d); return ad>=a && ad<=b; }
 function calcATMIV(items, S, type){
-  // nearest strike to S among selected type
-  let best=null, minDiff=Infinity;
+  let best=null, minDiff=1e12;
   for(const it of items){
-    if(!it || !it.details) continue;
-    const isPut = (it.details.contract_type==="put");
-    if( (type==="put") !== isPut ) continue;
-    const K = it.details.strike_price;
-    const diff = Math.abs(K - S);
-    if(diff<minDiff && Number.isFinite(it.implied_volatility)){
-      minDiff=diff; best=it;
-    }
+    const isPut = (it?.details?.contract_type==="put");
+    if((type==="put")!==isPut) continue;
+    const K=it?.details?.strike_price; if(!Number.isFinite(K)) continue;
+    const diff=Math.abs(K-S);
+    const iv = Number.isFinite(it?.implied_volatility)? it.implied_volatility*100 : NaN;
+    if(diff<minDiff && Number.isFinite(iv)){ minDiff=diff; best=iv; }
   }
-  return best?.implied_volatility ? (best.implied_volatility*100) : null;
+  return best ?? null;
 }
-
-function makeMid(bid,ask){
-  if(Number.isFinite(bid) && Number.isFinite(ask)) return (bid+ask)/2;
-  return NaN;
+function makeMid(b,a){ return (Number.isFinite(b)&&Number.isFinite(a))? (b+a)/2 : NaN; }
+function chainRangeFilter(S, type, K){
+  if(type==='call'){ const lo=S-50, hi=S+1000; return K>=lo && K<=hi; }
+  else{ const lo=S-1000, hi=S+50; return K>=lo && K<=hi; }
 }
-
-function skewClass(v){ if(!Number.isFinite(v)) return ""; if(v>=15) return "skewHigh"; return "skewFlat"; }
-
-function chainRangeFilter(S, type, strike){
-  if(type==='call'){
-    // $50 ITM → ~ $1000 OTM
-    const lower = S-50, upper = S+1000;
-    return strike>=lower && strike<=upper;
-  }else{
-    const upper = S+50, lower = S-1000;
-    return strike<=upper && strike>=lower;
-  }
-}
-
 function renderChain(items){
   const tbody=$("#tblChain tbody"); tbody.innerHTML="";
-  const S = Number($("#inpSpx").value);
-  const type = $("#selType").value;
+  const S=Number($("#inpSpx").value); const type=$("#selType").value;
+  const atmIV=calcATMIV(items, S, type);
+  if(atmIV){ $("#inpIV").value=atmIV.toFixed(2); state.lastATMIV=atmIV; }
 
-  // ATM IV for skew
-  const atmIV = calcATMIV(items, S, type);
-  if(atmIV){ $("#inpIV").value = atmIV.toFixed(2); state.lastATMIV = atmIV; }
-
-  // sort by strike
   items.sort((a,b)=> (a?.details?.strike_price ?? 0) - (b?.details?.strike_price ?? 0));
-
-  // Find auto ~0.50Δ (but don't override manual)
   let bestIdx=-1, bestDiff=1e9;
 
   for(const it of items){
-    const d = it?.greeks?.delta;
-    const isPut = (it?.details?.contract_type==="put");
-    if( (type==="put") !== isPut ) continue;
+    const isPut=(it?.details?.contract_type==="put"); if((type==="put")!==isPut) continue;
+    const K=Number(it?.details?.strike_price); if(!Number.isFinite(K) || !chainRangeFilter(S,type,K)) continue;
 
-    const K = Number(it?.details?.strike_price);
-    if(!chainRangeFilter(S, type, K)) continue;
-    if(!deltaInBand(Math.abs(d))) continue;
-
+    const d = it?.greeks?.delta; if(!deltaInBand(Math.abs(d))) continue;
     const bid = Number(it?.last_quote?.bid ?? it?.day?.bid_price);
     const ask = Number(it?.last_quote?.ask ?? it?.day?.ask_price);
     const mid = makeMid(bid,ask);
-    const iv  = Number.isFinite(it?.implied_volatility)? it.implied_volatility*100 : NaN;
-    const sk  = (Number.isFinite(iv) && Number.isFinite(atmIV)) ? (iv - atmIV) : NaN;
+    const iv = Number.isFinite(it?.implied_volatility)? it.implied_volatility*100 : NaN;
+    const sk = (Number.isFinite(iv) && Number.isFinite(atmIV))? (iv - atmIV) : NaN;
 
-    const tr = document.createElement("tr");
+    const tr=document.createElement("tr");
     tr.innerHTML = `
       <td>${fmt(K)}</td>
       <td>${Number.isFinite(bid)? fmt(bid):"<span class='na'>NaN</span>"}</td>
       <td>${Number.isFinite(ask)? fmt(ask):"<span class='na'>NaN</span>"}</td>
       <td>${Number.isFinite(mid)? fmt(mid):"<span class='na'>NaN</span>"}</td>
       <td>${Number.isFinite(iv)? fmt(iv):"<span class='na'>NaN</span>"}</td>
-      <td class="${skewClass(sk)}">${Number.isFinite(sk)? fmt(sk):"<span class='na'>NaN</span>"}</td>
+      <td class="${Number.isFinite(sk)? (sk>=15?"skewHigh":"skewFlat"):""}">${Number.isFinite(sk)? fmt(sk):"<span class='na'>NaN</span>"}</td>
       <td>${Number.isFinite(d)? fmt(d):"<span class='na'>NaN</span>"}</td>
       <td>${Number.isFinite(it?.greeks?.gamma)? fmt(it.greeks.gamma):"<span class='na'>NaN</span>"}</td>
       <td>${Number.isFinite(it?.greeks?.theta)? fmt(it.greeks.theta):"<span class='na'>NaN</span>"}</td>
       <td>${Number.isFinite(it?.greeks?.vega)? fmt(it.greeks.vega):"<span class='na'>NaN</span>"}</td>
       <td>${it?.details?.expiration_date ?? ""}</td>
     `;
-    tr.onclick = ()=>{
-      if(Number.isFinite(K)){ $("#inpK").value = K.toFixed(0); }
-      if(Number.isFinite(mid)){ $("#inpPrem").value = mid.toFixed(2); }
-      if(Number.isFinite(iv)){ $("#inpIV").value = iv.toFixed(2); }
-      setManualOverride();
+    tr.onclick=()=>{
+      $("#inpK").value = Number.isFinite(K)? K.toFixed(0): $("#inpK").value;
+      if(Number.isFinite(mid)) $("#inpPrem").value = mid.toFixed(2);
+      if(Number.isFinite(iv)) $("#inpIV").value = iv.toFixed(2);
+      state.manualSelection=true; setTimeout(()=>state.manualSelection=false, 20000);
       updatePosition();
     };
     tbody.appendChild(tr);
 
-    if(Number.isFinite(d)){
-      const diff = Math.abs(Math.abs(d)-0.5);
-      if(diff<bestDiff){ bestDiff=diff; bestIdx = tbody.rows.length-1; }
-    }
+    if(Number.isFinite(d)){ const diff=Math.abs(Math.abs(d)-0.5); if(diff<bestDiff){ bestDiff=diff; bestIdx=tbody.rows.length-1; } }
   }
 
-  // Auto highlight ~0.50Δ once (no overwrite of inputs if user interacted recently)
   if(bestIdx>=0 && !state.manualSelection){
-    const tr = tbody.rows[bestIdx]; tr.style.background="#13204a";
-    // Pre-fill once (but keep gentle)
-    const cells = tr.cells;
-    const K = Number(cells[0].textContent);
-    const mid = Number(cells[3].textContent);
-    const iv  = Number(cells[4].textContent);
-    if(Number.isFinite(K)) $("#inpK").value = K.toFixed(0);
-    if(Number.isFinite(mid)) $("#inpPrem").value = mid.toFixed(2);
-    if(Number.isFinite(iv)) $("#inpIV").value = iv.toFixed(2);
+    const tr=tbody.rows[bestIdx]; tr.style.background=varGet("--hl","#e6f2ff");
   }
 }
+function varGet(name, fallback){ return getComputedStyle(document.documentElement).getPropertyValue(name)||fallback; }
 
+/* ---------- live fetchers ---------- */
+async function refreshLive(){
+  try{
+    setChip("#chipData","Data: <span class='muted'>Fetching…</span>");
+    const [spx,vix,vxf] = await Promise.all([fetchSPX(), fetchVixPrev(), fetchVxFrontPrev()]);
+    if(Number.isFinite(spx)){ $("#inpSpx").value=spx.toFixed(2); state.lastSPX=spx; }
+    if(Number.isFinite(vix) && Number.isFinite(vxf)){
+      const ratio=vxf/vix; let tone="chip", text="Regime: <span>Flat</span>";
+      if(ratio>1.05){ tone="chip good"; text="Regime: <span>Contango</span>"; }
+      else if(ratio<0.97){ tone="chip bad"; text="Regime: <span>Backwardation</span>"; }
+      setChip("#chipRegime", text, tone);
+    }
+    setChip("#chipData",`Data: <span>${new Date().toLocaleTimeString()}</span>`);
+  }catch(e){ /* error already reported in polyGet */ }
+}
 async function refreshChain(){
+  const path = `/v3/snapshot/options/SPX`;
   try{
     $("#btnFetchChain").disabled=true;
-    const items = await fetchChainSnapshot();
-    state.chain = items;
-    renderChain(items);
+    const items=await fetchChainSnapshot();
+    state.chain=items; renderChain(items);
     setChip("#chipData",`Data: <span>${new Date().toLocaleTimeString()}</span>`);
-    $("#btnFetchChain").disabled=false;
   }catch(e){
-    $("#btnFetchChain").disabled=false;
-    setChip("#chipData","Data: <span class='muted'>Chain Error</span>","chip bad");
-  }
+    // polyGet already logged; ensure a visible context line too
+    reportError("refreshChain", path, null, null, e);
+  }finally{ $("#btnFetchChain").disabled=false; }
 }
 
-/* -------------------- Wiring & Events -------------------- */
+/* ---------- events ---------- */
 $("#btnFetchLive").onclick = async()=>{ await refreshLive(); fillDTE(); updatePosition(); };
 $("#btnFetchChain").onclick = async()=>{ await refreshChain(); fillDTE(); updatePosition(); };
-$("#btnUpdate").onclick = ()=>{ setManualOverride(); fillDTE(); updatePosition(); drawPayoff(); };
-$("#selType").onchange = ()=>{ setManualOverride(); refreshChain(); updatePosition(); };
+$("#btnUpdate").onclick = ()=>{ state.manualSelection=true; setTimeout(()=>state.manualSelection=false,20000); fillDTE(); updatePosition(); };
+$("#selType").onchange = ()=>{ state.manualSelection=true; setTimeout(()=>state.manualSelection=false,20000); refreshChain(); updatePosition(); };
+$$("[data-df]").forEach(b=> b.onclick=(e)=>{ deltaFilter=e.target.dataset.df; refreshChain(); });
 
-$$(".notice .btn").forEach(b=>{
-  b.onclick = (e)=>{ deltaFilter = e.target.dataset.df; refreshChain(); };
-});
-
-// Auto refresh controller
 function startAuto(){
-  stopAuto();
-  if(!$("#chkAuto").checked) return;
-  const ms = Number($("#selInterval").value);
-  state.autoTimer = setInterval(async()=>{
-    await refreshLive();
-    // Chain refresh lighter cadence: every second cycle
+  stopAuto(); if(!$("#chkAuto").checked) return;
+  const ms=Number($("#selInterval").value);
+  state.autoTimer=setInterval(async()=>{
+    await refreshLive(); fillDTE(); updatePosition();
+    // refresh chain every other tick to reduce load
     if(Date.now()% (ms*2) < ms) await refreshChain();
-    fillDTE(); updatePosition();
   }, ms);
 }
 function stopAuto(){ if(state.autoTimer){ clearInterval(state.autoTimer); state.autoTimer=null; } }
-$("#chkAuto").onchange = startAuto; $("#selInterval").onchange = startAuto;
+$("#chkAuto").onchange=startAuto; $("#selInterval").onchange=startAuto;
 
-// Initial paint
-fillDTE(); drawPayoff(); updatePosition();
-
-/* ----------------------- END ----------------------------- */
+/* ---------- init ---------- */
+fillDTE(); updatePosition(); // waits for first live pull
 </script>
-
     <div id="finra-disclosure" class="finra-disclosure">
         <h3>Full FINRA Options Disclosure</h3>
         <p>Options involve risks and are not suitable for all investors. Prior to buying or selling an option, a person must receive a copy of <em>Characteristics and Risks of Standardized Options</em>. Copies of this document may be obtained from your broker, from any exchange on which options are traded or by contacting The Options Clearing Corporation at 125 S. Franklin Street, Suite 1200, Chicago, IL 60606 (1-888-678-4667). The document is also available at <a href="https://www.theocc.com/Company-Information/Documents-and-Archives/Options-Disclosure-Document" target="_blank">www.theocc.com</a>.</p>
