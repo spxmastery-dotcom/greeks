@@ -255,42 +255,66 @@ async function polyGet(path, params={}){
 }
 
 /* ========= data: SPX/VIX/VX ========= */
+// --- REPLACE THIS WHOLE FUNCTION ---
 async function fetchSPX(){
-  const end = new Date(); const start = new Date(end.getTime()-60*60*1000);
-  try{
-    const j = await polyGet(`/v2/aggs/ticker/I:SPX/range/1/minute/${start.toISOString()}/${end.toISOString()}`, {adjusted:true, sort:"asc", limit:500});
-    const arr=j?.results||[]; if(arr.length){ $("#chipAH").className="chip"; $("#chipAH").innerHTML="Hours: <span>Intraday</span>"; return arr[arr.length-1].c; }
-  }catch(_){}  // fall through
-  const j2 = await polyGet(`/v2/aggs/ticker/I:SPX/prev`, {adjusted:true});
-  $("#chipAH").className="chip warn"; $("#chipAH").innerHTML="Hours: <span>After Hours</span>";
+  const end   = new Date();
+  const start = new Date(end.getTime() - 60*60*1000); // last 60 minutes
+  // Polygon /v2/aggs ... requires YYYY-MM-DD *or* a Unix timestamp.
+  // Use Unix *milliseconds* to avoid the ISO-8601 parsing error.
+  const from = start.getTime();
+  const to   = end.getTime();
+
+  try {
+    const j = await polyGet(
+      `/v2/aggs/ticker/I:SPX/range/1/minute/${from}/${to}`,
+      { adjusted: true, sort: "asc", limit: 500 }
+    );
+    const arr = j?.results || [];
+    if (arr.length) {
+      $("#chipAH").className = "chip";
+      $("#chipAH").innerHTML = "Hours: <span>Intraday</span>";
+      return arr[arr.length - 1].c; // last close of the latest minute bar
+    }
+  } catch (e) {
+    // fall through to prev-close below
+  }
+
+  const j2 = await polyGet(`/v2/aggs/ticker/I:SPX/prev`, { adjusted: true });
+  $("#chipAH").className = "chip warn";
+  $("#chipAH").innerHTML = "Hours: <span>After Hours</span>";
   return j2?.results?.[0]?.c ?? NaN;
 }
-async function fetchVixPrev(){ const j=await polyGet(`/v2/aggs/ticker/I:VIX/prev`, {adjusted:true}); return j?.results?.[0]?.c ?? NaN; }
-async function fetchVxFrontPrev(){ const j=await polyGet(`/v2/aggs/ticker/X:VXU5/prev`, {adjusted:true}); return j?.results?.[0]?.c ?? NaN; }
-
-/* ========= data: options chain ========= */
-/* V26 worked with /v3/snapshot/options/SPX. Some plans reject extra params → 400.
-   Strategy: try with (limit, order, sort). If 400, retry with NO params. If still 400, last-resort try I:SPX. */
+// --- REPLACE THIS WHOLE FUNCTION ---
 async function fetchChainSnapshot(){
-  const base = `/v3/snapshot/options/SPX`;
-  try{
-    const j = await polyGet(base, {limit:1000, order:"asc", sort:"strike_price"});
-    return j?.results || [];
-  }catch(e1){
-    try{
-      const j = await polyGet(base, {}); // naked call
-      return j?.results || [];
-    }catch(e2){
-      try{
-        const j = await polyGet(`/v3/snapshot/options/I:SPX`, {limit:1000});
-        return j?.results || [];
-      }catch(e3){
-        throw e3; // polyGet already logged a detailed error
-      }
-    }
+  // V26 worked with /v3/snapshot/options/SPX.
+  // Use limit=250 (Polygon's max) and follow the cursor in next_url.
+  const PATH = `/v3/snapshot/options/SPX`;
+  const MAX = 250;
+  let results = [];
+  let cursor = null;
+  let pages = 0;
+
+  try {
+    do {
+      const params = cursor ? { cursor } : { limit: MAX }; // avoid sort/order/include to prevent 400s
+      const j = await polyGet(PATH, params);
+      results.push(...(j?.results || []));
+      // Pull "cursor" out of next_url for the next loop
+      const next = j?.next_url ? new URL(j.next_url) : null;
+      cursor = next ? next.searchParams.get("cursor") : null;
+
+      // guard: don't loop forever if the API misbehaves
+      pages += 1;
+      if (pages > 8) break; // ~2000 rows max
+    } while (cursor);
+
+    return results;
+  } catch (e) {
+    // polyGet already printed a detailed error (URL, HTTP, Body)
+    throw e;
   }
 }
-
+  
 /* ========= BS ========= */
 function normPdf(x){ return Math.exp(-0.5*x*x)/Math.sqrt(2*Math.PI); }
 function normCdf(x){ const k=1/(1+0.2316419*Math.abs(x)); const a1=0.31938153,a2=-0.356563782,a3=1.781477937,a4=-1.821255978,a5=1.330274429; const p=((((a5*k+a4)*k+a3)*k+a2)*k+a1)*k; const c=1-normPdf(x)*p; return x>=0?c:1-c; }
