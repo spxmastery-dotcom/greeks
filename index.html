@@ -158,7 +158,7 @@
             <input type="number" id="contracts" step="1" value="1" />
           </label>
           <label>r (%)<br/>
-            <input type="number" id="rate" step="0.01" value="5.30" title="Risk‑free annualized. Defaults to 5.30%" />
+            <input type="number" id="rate" step="0.01" value="5.30" title="Risk-free annualized. Defaults to 5.30%" />
           </label>
           <label>q (%)<br/>
             <input type="number" id="divy" step="0.01" value="1.30" title="Dividend yield. Defaults to 1.30%" />
@@ -243,7 +243,9 @@
       <h2>Diagnostics</h2>
       <div id="log" class="log" aria-live="polite"></div>
       <div class="error-banner">
-        <b>FINRA / OCC Disclosure</b>: Options involve risks and are not suitable for all investors. Read <a href="https://www.theocc.com/Company-Information/Documents-and-Archives/Options-Disclosure-Document" target="_blank" rel="noopener">Characteristics and Risks of Standardized Options</a> before trading.
+        <b>FINRA / OCC Disclosure</b>: Options involve risks and are not suitable for all investors. Read
+        <a href="https://www.theocc.com/Company-Information/Documents-and-Archives/Options-Disclosure-Document" target="_blank" rel="noopener">Characteristics and Risks of Standardized Options</a>
+        before trading.
       </div>
     </section>
 
@@ -265,15 +267,16 @@
     vxCooldownUntil: 0,
     chain: [],
   };
+  let DISABLE_INDEX_QUOTES = false; // Patch #1: memoize plan capability for index quotes
+  let lastAnalyzeKey = '';          // Patch #3: debounce analyze
 
   const $ = (id)=>document.getElementById(id);
   const logBox = $('log');
-  const fmtTime = (d=new Date())=>d.toLocaleTimeString('en-US',{hour12:true});
   function logLine(msg, level='INFO'){
     const ts = new Date().toISOString();
     const last = logBox.lastElementChild?.textContent || '';
     const line = `[${ts}] ${level}: ${msg}`;
-    if(last.endsWith(msg)) return; // de-dupe exact repeats
+    if(last.endsWith(msg)) return; // de-dupe
     const div = document.createElement('div');
     div.textContent = line;
     logBox.appendChild(div);
@@ -287,12 +290,8 @@
   }
   function setLoading(btn, on){ if(!btn) return; btn.disabled = !!on; btn.textContent = on? 'Working…' : btn.dataset.label || btn.textContent; }
   function daysToY(d){ return Math.max(d/365, 1/365/8); }
-
-  // Local storage helpers
   function saveKV(k,v){ try{ localStorage.setItem(k, v); }catch(e){} }
   function readKV(k){ try{ return localStorage.getItem(k); }catch(e){ return null; } }
-
-  // Date helpers
   function addDays(dateStr, d){ const d0 = dateStr? new Date(dateStr): new Date(); d0.setDate(d0.getDate()+d); return d0.toISOString().slice(0,10); }
   function isoToday(){ return new Date().toISOString().slice(0,10); }
 
@@ -310,7 +309,6 @@
 
   /******************** Polygon Endpoints ********************/
   const POLY = 'https://api.polygon.io';
-
   async function polyJSON(path, params={}, signal){
     const key = $('apiKey').value.trim();
     if(!key) throw new Error('Missing Polygon API key');
@@ -321,30 +319,55 @@
     return r.json();
   }
 
-  // Live SPX: prefer universal snapshot → quotes v3 → prev bar fallback
+  // Patch #1: Plan-aware SPX fetch (no more 403 spam)
   async function fetchLiveSPX(){
     const ctrl = new AbortController();
     const id = setTimeout(()=>ctrl.abort(), 10000);
     try{
-      // Universal snapshot (cross-asset); returns lastQuote/lastTrade when available
-      const snap = await polyJSON('/v3/snapshot', { tickers:'I:SPX' }, ctrl.signal);
-      const s = snap?.results?.[0];
-      let spx = Number(s?.lastQuote?.P || s?.lastTrade?.p || s?.day?.c);
-      if(!Number.isFinite(spx)){
-        // fallback: latest quote record
-        const q = await polyJSON('/v3/quotes/I:SPX', { limit:1, sort:'timestamp', order:'desc' }, ctrl.signal);
-        spx = Number(q?.results?.[0]?.bp && q?.results?.[0]?.ap ? (q.results[0].bp+q.results[0].ap)/2 : NaN);
+      // 1) Universal Snapshot (quotes) — skip if disabled due to plan
+      if(!DISABLE_INDEX_QUOTES){
+        try{
+          const snap = await polyJSON('/v3/snapshot', { tickers:'I:SPX' }, ctrl.signal);
+          const s = snap?.results?.[0];
+          const fromSnap = Number(s?.lastQuote?.P || s?.lastTrade?.p);
+          if (Number.isFinite(fromSnap)) {
+            state.spx = fromSnap; $('spx').value = fromSnap.toFixed(2);
+            logLine(`SPX updated (snapshot): ${fromSnap.toFixed(2)}`);
+            return fromSnap;
+          }
+        } catch(e) {
+          if (/HTTP_403/.test(e.message)) {
+            DISABLE_INDEX_QUOTES = true;
+            logLine('Live index quotes not included on this plan — switching to delayed SPX.', 'WARN');
+          } else {
+            logLine(`SNAPSHOT_WARN: ${e.message}`, 'WARN');
+          }
+        }
       }
-      if(!Number.isFinite(spx)){
-        // fallback: previous close
-        const prev = await polyJSON('/v2/aggs/ticker/I:SPX/prev', {}, ctrl.signal);
-        spx = Number(prev?.results?.[0]?.c);
+
+      // 2) Delayed minute aggregate
+      try{
+        const today = new Date().toISOString().slice(0,10);
+        const r = await polyJSON(`/v2/aggs/ticker/I:SPX/range/1/min/${today}/${today}`, { limit:1, sort:'desc' }, ctrl.signal);
+        const agg = r?.results?.[0];
+        if (agg?.c != null) {
+          const spx = Number(agg.c);
+          state.spx = spx; $('spx').value = spx.toFixed(2);
+          logLine(`SPX updated (delayed 1m agg): ${spx.toFixed(2)}`);
+          return spx;
+        }
+      }catch(e){
+        if(!/HTTP_403/.test(e.message)) logLine(`AGG_WARN: ${e.message}`, 'WARN');
       }
+
+      // 3) Previous close fallback
+      const prev = await polyJSON('/v2/aggs/ticker/I:SPX/prev', {}, ctrl.signal);
+      const spx = Number(prev?.results?.[0]?.c);
       if(!Number.isFinite(spx)) throw new Error('No SPX price available');
       state.spx = spx; $('spx').value = spx.toFixed(2);
-      logLine(`SPX updated: ${spx.toFixed(2)}`);
+      logLine(`SPX updated (prev close): ${spx.toFixed(2)}`);
       return spx;
-    } finally{ clearTimeout(id); }
+    } finally { clearTimeout(id); }
   }
 
   // VIX spot (prev close) for regime
@@ -366,11 +389,10 @@
       if(!Number.isFinite(c)) throw new Error('No VX data');
       return c;
     }catch(e){
-      // backoff on 429 or 403
       const isRate = /HTTP_429/.test(e.message);
       const isAuth = /HTTP_403/.test(e.message);
       if(isRate){
-        const delay = state.vxCooldownUntil ? 300000 : 60000; // 60s → 5m
+        const delay = state.vxCooldownUntil ? 300000 : 60000;
         state.vxCooldownUntil = now + delay;
         logLine(`Contango paused (rate limit). Retry after ${(delay/1000)|0}s`, 'WARN');
       } else if(isAuth){
@@ -411,7 +433,7 @@
     if(!Number.isFinite(spx)) throw new Error('SPX price missing');
     const range = type==='call' ? { lo: spx-50, hi: spx+1000 } : { lo: spx-1000, hi: spx+50 };
     const params = {
-      underlying: 'I:SPX', // documented for index options
+      underlying: 'I:SPX',
       expiration_date: exp,
       contract_type: type,
       limit: 200,
@@ -419,7 +441,6 @@
       'strike_price.gte': Math.max(0, Math.floor(range.lo/5)*5),
       'strike_price.lte': Math.ceil(range.hi/5)*5
     };
-    // NOTE: docs show using underlying in path (…/I:SPX). Also accept underlying param for safety.
     const data = await polyJSON('/v3/snapshot/options/I:SPX', params);
     const list = data?.results || [];
     if(!list.length) throw new Error('Empty chain (check expiration or plan)');
@@ -427,22 +448,26 @@
     renderChain(list, spx);
   }
 
-  /******************** Rendering: Chain ********************/
+  /******************** Rendering: Chain (Patch #2) ********************/
   function safe(n, dp=2){ return Number.isFinite(n)? n.toFixed(dp) : 'N/A'; }
 
   function renderChain(rows, spx){
     const tbody = $('chainTable').querySelector('tbody');
     tbody.innerHTML='';
-    // Find ATM IV for skew
+
+    // ATM IV for skew
     let atm = rows.reduce((a,b)=> Math.abs(b?.details?.strike_price-spx) < Math.abs(a?.details?.strike_price-spx)? b:a, rows[0]);
     const atmIV = Number(atm?.implied_volatility)*100; state.atmIVForSkew = atmIV;
 
     rows.forEach(c=>{
       const bid = Number(c?.last_quote?.bid);
       const ask = Number(c?.last_quote?.ask);
-      const mid = (Number.isFinite(bid)&&Number.isFinite(ask))? (bid+ask)/2 : NaN;
+      const trade = Number(c?.last_trade?.price);
+      let mid = NaN, midNote = '';
+      if (Number.isFinite(bid) && Number.isFinite(ask)) { mid = (bid+ask)/2; }
+      else if (Number.isFinite(trade)) { mid = trade; midNote = ' (trade)'; } // fallback mid
       const ivp = Number(c?.implied_volatility)*100;
-      const skew = Number.isFinite(ivp)&&Number.isFinite(atmIV)? (ivp - atmIV): NaN;
+      const skew = (Number.isFinite(ivp)&&Number.isFinite(atmIV))? (ivp - atmIV) : NaN;
       const d = Number(c?.greeks?.delta);
       const g = Number(c?.greeks?.gamma);
       const t = Number(c?.greeks?.theta);
@@ -455,9 +480,9 @@
       tr.innerHTML = `
         <td title="Click to analyze">${c?.details?.ticker || ''}</td>
         <td>${safe(Number(c?.details?.strike_price),0)}</td>
-        <td>${safe(bid)}</td>
-        <td>${safe(ask)}</td>
-        <td>${safe(mid)}</td>
+        <td>${Number.isFinite(bid)? bid.toFixed(2): 'N/A'}</td>
+        <td>${Number.isFinite(ask)? ask.toFixed(2): 'N/A'}</td>
+        <td>${Number.isFinite(mid)? mid.toFixed(2)+midNote: 'N/A'}</td>
         <td>${safe(ivp)}</td>
         <td>${safe(skew)}</td>
         <td>${safe(d)}</td>
@@ -467,18 +492,19 @@
 
       tr.addEventListener('click', ()=>{
         $('strike').value = Number(c?.details?.strike_price)||'';
-        $('iv').value = Number.isFinite(ivp)? ivp.toFixed(2): '';
-        $('premium').value = Number.isFinite(mid)? mid.toFixed(2): '';
-        $('optType').value = (d>=0? 'call':'put'); // rough hint; user keeps control
+        if(Number.isFinite(ivp)) $('iv').value = ivp.toFixed(2);
+        if(Number.isFinite(mid)) $('premium').value = mid.toFixed(2);
+        $('optType').value = (d>=0? 'call':'put');
         analyze();
       });
 
       tbody.appendChild(tr);
     });
+
     logLine(`Chain filled (${rows.length} rows). ATM IV ~ ${safe(atmIV)}%`);
   }
 
-  /******************** Analytics: BS + Charts ********************/
+  /******************** Analytics: BS + Charts (Patch #3) ********************/
   function normCDF(x){
     const t = 1/(1+0.2316419*Math.abs(x));
     const d = 0.3989422804014327*Math.exp(-0.5*x*x);
@@ -489,31 +515,44 @@
     const s=Math.max(sigma,1e-6), t=Math.max(T,1/365/8);
     const d1 = (Math.log(S/K)+(r-q+0.5*s*s)*t)/(s*Math.sqrt(t));
     const d2 = d1 - s*Math.sqrt(t);
-    const Nd1 = normCDF(isCall? d1: -d1);
-    const Nd2 = normCDF(isCall? d2: -d2);
     const price = isCall? (S*Math.exp(-q*t)*normCDF(d1) - K*Math.exp(-r*t)*normCDF(d2)) : (K*Math.exp(-r*t)*normCDF(-d2) - S*Math.exp(-q*t)*normCDF(-d1));
-    const delta = (isCall? 1:-1) * Math.exp(-q*t) * (isCall? normCDF(d1): -normCDF(-d1));
+    const delta = isCall? Math.exp(-q*t)*normCDF(d1) : -Math.exp(-q*t)*normCDF(-d1);
     const gamma = Math.exp(-q*t)/(S*s*Math.sqrt(t))*0.3989422804014327*Math.exp(-0.5*d1*d1);
     const vega = S*Math.exp(-q*t)*Math.sqrt(t)*0.3989422804014327*Math.exp(-0.5*d1*d1);
     const theta = - (S*Math.exp(-q*t)*0.3989422804014327*s)/ (2*Math.sqrt(t)) - (isCall? r*K*Math.exp(-r*t)*normCDF(d2) : -r*K*Math.exp(-r*t)*normCDF(-d2)) + q*S*Math.exp(-q*t)*(isCall? normCDF(d1): -normCDF(-d1));
     return {price, delta, gamma, vega, theta};
   }
 
+  function currentAnalyzeKey(){
+    return [
+      $('spx').value, $('strike').value, $('iv').value,
+      $('rate').value, $('divy').value, $('optType').value, $('expiration').value, $('premium').value
+    ].join('|');
+  }
+
   function analyze(){
+    const key = currentAnalyzeKey();
+    if(key === lastAnalyzeKey) { logLine('Analyze skipped (no changes)'); return; }
+    lastAnalyzeKey = key;
+
     const S = Number($('spx').value), K=Number($('strike').value), iv=Number($('iv').value)/100;
     const r=Number($('rate').value)/100, q=Number($('divy').value)/100; const isCall = $('optType').value==='call';
-    const exp = $('expiration').value; if(!exp||!Number.isFinite(S)||!Number.isFinite(K)||!Number.isFinite(iv)){ logLine('Analyze: missing inputs','ERROR'); return; }
+    const exp = $('expiration').value;
+    if(!exp||!Number.isFinite(S)||!Number.isFinite(K)||!Number.isFinite(iv)){
+      logLine('Analyze: missing inputs','ERROR'); return;
+    }
     const T = daysToY((new Date(exp)-new Date())/86400000);
     const g = bs(S,K,T,r,iv,q,isCall);
 
     // Profit curve ±60 points
     const xs=[], ys=[], thetas=[], deltas=[], gammas=[], vegas=[];
+    const premium = Number($('premium').value||0);
     for(let d=-60; d<=60; d+=5){
       const S2 = S + d;
       const gg = bs(S2,K,T,r,iv,q,isCall);
       xs.push(S2);
-      ys.push((gg.price - Number($('premium').value||0)) * 100); // $ per contract (multiplier 100)
-      thetas.push(gg.theta/365*100); // per day * 100 multiplier
+      ys.push((gg.price - premium) * 100);     // $ per contract
+      thetas.push(gg.theta/365*100);           // per day, $ per contract
       deltas.push(gg.delta*100);
       gammas.push(gg.gamma);
       vegas.push(gg.vega);
@@ -550,7 +589,6 @@
       }catch(e){ /* already logged */ }
       showRegime(ratio);
 
-      // Resolve expiration for target DTE
       const dte = Number($('dte').value)||30; state.dteTarget=dte;
       const exp = await resolveExpiration(dte); state.expDate=exp; $('expiration').value = exp;
       logLine(`Resolved expiration: ${exp} for target ${dte}DTE`);
@@ -574,7 +612,16 @@
     $('btnSPXStream').textContent = `SPX Auto 60s: ${state.autoSPX? 'On':'Off'}`;
   }
 
-  async function spxTick(){ if(!state.autoSPX) return; try{ await fetchLiveSPX(); }catch(e){ logLine(`SPX_AUTO_ERROR: ${e.message}`,'ERROR'); } }
+  // Patch #1: safer auto 60s loop
+  async function spxTick(){
+    if(!state.autoSPX) return;
+    try{
+      await fetchLiveSPX();
+    }catch(e){
+      if(/HTTP_403/.test(e.message)) DISABLE_INDEX_QUOTES = true;
+      logLine(`SPX_AUTO_ERROR: ${e.message}`,'ERROR');
+    }
+  }
 
   function bindUI(){
     $('showKey').addEventListener('change', e=>{ $('apiKey').type = e.target.checked? 'text':'password'; });
@@ -594,7 +641,6 @@
     $('btnAnalyze').addEventListener('click', analyze);
 
     $('btnHoldings').addEventListener('click', ()=>{
-      // Minimal P/L using current premium
       analyze();
       logLine('Holdings analysis refreshed');
     });
@@ -628,9 +674,9 @@
       $('dte').focus();
     });
 
-    // When user changes DTE manually
     $('dte').addEventListener('change', async ()=>{
-      const d = Number($('dte').value)||30; try{ const exp = await resolveExpiration(d); $('expiration').value = exp; logLine(`Resolved expiration: ${exp} for ${d}DTE`);}catch(e){ logLine(`EXP_ERROR: ${e.message}`,'ERROR'); }
+      const d = Number($('dte').value)||30;
+      try{ const exp = await resolveExpiration(d); $('expiration').value = exp; logLine(`Resolved expiration: ${exp} for ${d}DTE`);}catch(e){ logLine(`EXP_ERROR: ${e.message}`,'ERROR'); }
     });
   }
 
@@ -639,7 +685,7 @@
     const K = $('strike').value, IV = $('iv').value, P = $('premium').value, DTE = $('dte').value;
     const skew = Number(state.atmIVForSkew)? (Number(IV) - Number(state.atmIVForSkew)).toFixed(2): 'N/A';
     const regime = $('regimeBadge').textContent;
-    return `Today ${isoToday()} SPX ${S}. Regime ${regime}. Analyze a ${type} strike ${K} IV ${IV}% premium ${P}, DTE ${DTE}. Context: skew ${skew} vs ATM ${state.atmIVForSkew?.toFixed?.(2)||'N/A'}. Goal: intraday to multi‑day trade. Advise Buy/Hold/Add/Sell with concrete triggers (P/L %, Δ/Θ/IV changes, price targets).`;
+    return `Today ${isoToday()} SPX ${S}. Regime ${regime}. Analyze a ${type} strike ${K} IV ${IV}% premium ${P}, DTE ${DTE}. Context: skew ${skew} vs ATM ${state.atmIVForSkew?.toFixed?.(2)||'N/A'}. Goal: intraday to multi-day trade. Advise Buy/Hold/Add/Sell with concrete triggers (P/L %, Δ/Θ/IV changes, price targets).`;
   }
 
   /******************** Boot ********************/
@@ -654,7 +700,6 @@
     mountTV();
     bindUI();
 
-    // First run minimal: don’t force calls without key; user hits Fetch
     logLine('V28 loaded. Enter API key → Fetch Live Data.', 'INFO');
   })();
   </script>
@@ -666,7 +711,7 @@
   export const config = { runtime: 'edge' };
   export default async (req: Request) => {
     const { prompt } = await req.json();
-    const key = process.env.GROK_API_KEY!; // keep secret server-side
+    const key = process.env.GROK_API_KEY!;
     const r = await fetch('https://api.x.ai/v1/chat/completions', {
       method:'POST', headers:{ 'Authorization': `Bearer ${key}`, 'Content-Type':'application/json' },
       body: JSON.stringify({ model:'grok-beta', messages:[{role:'user', content: prompt}] })
@@ -690,7 +735,6 @@
     }
   };
 
-  ===========================================================================
-  -->
+  =========================================================================== -->
 </body>
 </html>
